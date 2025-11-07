@@ -1,0 +1,3839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>时光超市</title>
+  <!-- Tailwindwind CSS v3 -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Font Awesome -->
+  
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#4F46E5',
+            secondary: '#10B981',
+            accent: '#732BF5',
+            danger: '#EF4444',
+            dark: '#1F2937',
+            light: '#F3F4F6',
+            entrance: '#60A5FA',
+            exit: '#F87171',
+            obstacle: '#6B7280',
+            // 1x1货架颜色选项 - 提高区分度
+            shelf1x1_1: '#EB3324', // 深紫色
+            shelf1x1_2: '#3282F6', // 深蓝色
+            shelf1x1_3: '#377E47', // 深绿色
+			shelf1x1_4: '#A3A3A3', // 深绿色
+			shelf1x1_5: '#000E6E', // 深绿色
+            // 1x2货架颜色选项 - 提高区分度
+            shelf2x1_1: '#FEBCF2', // 鲜红色
+            shelf2x1_2: '#732BF5', // 橙色
+            shelf2x1_3: '#0080C0', // 粉红色
+            shelf2x1_4: '#CCCA44', // 天蓝色
+            shelf2x1_5: '#367E7F', // 紫色
+            // 2x2货架保持原有颜色但加深
+            shelf2x2: '#FF8000', // 深绿色
+            path: '#FBBF24',     // 路径主色
+            pathBg: '#FFF3C4',   // 路径背景色
+            gridLine: '#E5E7EB'
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .tool-button {
+        @apply w-full p-3 mb-2 rounded-lg text-white font-medium transition-all duration-200 flex items-center justify-center;
+      }
+      
+      .tool-button:hover {
+        @apply transform scale-105 shadow-md;
+      }
+      
+      .tool-button.active {
+        @apply ring-2 ring-yellow-400;
+      }
+      
+      .canvas-container {
+        @apply bg-white rounded-xl shadow-md overflow-hidden; /* 移除自动滚动 */
+      }
+      
+      .rotate-button {
+        @apply absolute -top-6 -right-6 bg-gray-200 p-1 rounded-full cursor-pointer;
+      }
+      
+      .color-option {
+        @apply w-10 h-5 rounded-full cursor-pointer transition-transform hover:scale-110 border border-white;
+      }
+      
+      .color-options {
+        @apply flex gap-1 mt-1 flex-wrap justify-center;
+      }
+      
+      .tooltip {
+        @apply invisible absolute bg-dark text-white text-xs rounded py-1 px-2 -mt-8 opacity-0 transition-opacity duration-300 min-w-[300px] max-w-[500px];
+      }
+      
+      .has-tooltip:hover .tooltip {
+        @apply visible opacity-100;
+      }
+      
+      /* 工具按钮中的货架预览 */
+      .tool-shelf-preview {
+        @apply flex items-center justify-center mr-2;
+      }
+      
+      .tool-shelf-1x1 {
+        @apply w-4 h-4 bg-white/30;
+      }
+      
+      .tool-shelf-2x1-horizontal {
+        @apply w-8 h-4 bg-white/30;
+      }
+      
+      .tool-shelf-2x1-vertical {
+        @apply w-4 h-8 bg-white/30;
+      }
+      
+      .tool-shelf-2x2 {
+        @apply w-6 h-6 bg-white/30 grid grid-cols-2 gap-0.5;
+      }
+      
+      .tool-shelf-2x2 div {
+        @apply w-2 h-2 bg-white/50;
+      }
+	  /* 自定义工具类：提示框基础样式 */
+      .auto-alert-base {
+        @apply fixed left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-lg text-white opacity-0 pointer-events-none transition-opacity duration-300;
+      }
+      /* 提示框显示状态 */
+      .auto-alert-show {
+        @apply opacity-100;
+      }
+      /* 可选：不同类型提示的背景色（如成功、错误） */
+      .auto-alert-success {
+        @apply bg-green-600;
+      }
+      .auto-alert-error {
+        @apply bg-red-600;
+      }
+		/* 1. 解决位置偏移：容器宽度100%，内部居中 */
+		.icon-scroll-container {
+		  width: 100%; /* 改为100%避免左右偏移 */
+		  max-width: 490px; /* 限制最大宽度，避免在大屏上太分散 */
+		  margin: 0 auto; /* 水平居中 */
+		  padding: 0 10px; /* 左右留小间距，避免边缘图标被截断 */
+		}
+		
+		.icon-track {
+		  width: max-content; /* 内容自适应宽度 */
+		}
+		
+		/* 2. 解决无缝滚动：精确控制动画位移 */
+		@keyframes scrollIcons {
+		  0% {
+			transform: translateX(0);
+		  }
+		  100% {
+			/* 关键：位移距离 = 第一组图标的总宽度（确保第二组与第一组完全衔接） */
+			/* 计算方式：(单个图标宽度 + 左右间距) * 9个图标 */
+			/* 此处通过实测调整，确保滚动结束时第二组第一个图标与第一组第一个图标对齐 */
+			transform: translateX(calc(-100% + 490px)); /* 800px为容器max-width，按需调整 */
+		  }
+		}
+		
+		.animate-scroll {
+		  animation: scrollIcons 25s linear infinite; /* 速度可调整（15s一圈） */
+		}
+		
+		/* 3. 优化交互：悬停暂停 */
+		.icon-scroll-container:hover .animate-scroll {
+		  animation-play-state: paused;
+		}
+    }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div class="container mx-auto px-4 py-8">
+    <header class="mb-8 text-center">
+      <h1 class="text-4xl font-bold text-primary mb-2">超市游戏 - 房间编辑器</h1>
+      <!-- 滚动图标容器 -->
+	  <div class="icon-scroll-container overflow-hidden py-2">
+		<div class="icon-track flex animate-scroll">
+		  <!-- 第一组图标 -->
+		  <i class="fa fa-apple-whole text-2xl mx-4" style="color: #EB3324;"></i>
+		  <i class="fa-brands fa-gulp text-2xl mx-4" style="color: #3282F6;"></i>
+		  <i class="fa-solid fa-carrot text-2xl mx-4" style="color: #377E47;"></i>
+		  <i class="fa-solid fa-pump-soap text-2xl mx-4" style="color: #FEBCF2;"></i>
+		  <i class="fa-solid fa-basketball text-2xl mx-4" style="color: #732BF5;"></i>
+		  <i class="fa-solid fa-mobile-screen-button text-2xl mx-4" style="color: #0080C0;"></i>
+		  <i class="fa-regular fa-gem text-2xl mx-4" style="color: #CCCA44;"></i>
+		  <i class="fa-solid fa-shirt text-2xl mx-4" style="color: #367E7F;"></i>
+		  <i class="fa-solid fa-desktop text-2xl mx-4" style="color: #FF8000;"></i>
+		  
+		  <!-- 第二组图标（与第一组完全一致，用于无缝衔接） -->
+		  <i class="fa fa-apple-whole text-2xl mx-4" style="color: #EB3324;"></i>
+		  <i class="fa-brands fa-gulp text-2xl mx-4" style="color: #3282F6;"></i>
+		  <i class="fa-solid fa-carrot text-2xl mx-4" style="color: #377E47;"></i>
+		  <i class="fa-solid fa-pump-soap text-2xl mx-4" style="color: #FEBCF2;"></i>
+		  <i class="fa-solid fa-basketball text-2xl mx-4" style="color: #732BF5;"></i>
+		  <i class="fa-solid fa-mobile-screen-button text-2xl mx-4" style="color: #0080C0;"></i>
+		  <i class="fa-regular fa-gem text-2xl mx-4" style="color: #CCCA44;"></i>
+		  <i class="fa-solid fa-shirt text-2xl mx-4" style="color: #367E7F;"></i>
+		  <i class="fa-solid fa-desktop text-2xl mx-4" style="color: #FF8000;"></i>
+		</div>
+	  </div>
+    </header>
+    
+    <!-- 房间大小设置 -->
+    <div id="room-setup" class="mb-8 bg-white p-6 rounded-xl shadow-md">
+      <h2 class="text-2xl font-bold mb-4 text-dark">设置房间大小</h2>
+      <div class="flex flex flex-col md:flex-row gap-4 items-center justify-center">
+        <div class="flex items-center">
+          <label for="rows" class="mr-2 text-gray-700">行数 (m):</label>
+          <!-- 修改最大限制为30 -->
+          <input type="number" id="rows" min="3" max="30" value="8" class="w-20 p-2 border border-gray-300 rounded-md">
+        </div>
+        <div class="flex items-center">
+          <label for="columns" class="mr-2 text-gray-700">列数 (n):</label>
+          <!-- 修改最大限制为30 -->
+          <input type="number" id="columns" min="3" max="30" value="12" class="w-20 p-2 border border-gray-300 rounded-md">
+        </div>
+        <button id="create-room" class="bg-primary hover:bg-primary/90 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+          创建房间
+        </button>
+      </div>
+    </div>
+	
+	<!-- 
+	    <button class="template-button bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors" data-template="1">1店</button>
+		
+        <button class="template-button bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors" data-template="2">2店</button>
+        <button class="template-button bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors" data-template="3">3店</button>
+        <button class="template-button bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors" data-template="4">4店</button>
+        <button class="template-button bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors" data-template="5">5店</button>
+        <button class="template-button bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors" data-template="6">6店</button>
+        <button class="template-button bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors" data-template="7">7店</button>
+	
+	-->
+    
+    <!-- 加载模板 -->
+    <div id="template-loader" class="mb-8 bg-white p-6 rounded-xl shadow-md">
+      <h2 class="text-2xl font-bold mb-4 text-dark">加载模板</h2>
+      <div class="flex flex flex-col md:flex-row gap-4 items-center justify-center">
+	    <label for="koubei1" class="mr-2 text-gray-700">口碑:</label>
+		<input type="number" id="koubei1" min="1" max="13" value="1" class="w-20 p-2 border border-gray-300 rounded-md">
+        <button class="template-button bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors" data-template="0">1店</button>
+      </div>
+	  
+	  <div class="flex flex flex-col md:flex-row gap-4 items-center justify-center">
+	    <label for="koubei2" class="mr-2 text-gray-700">口碑:</label>
+		<input type="number" id="koubei2" min="1" max="13" value="1" class="w-20 p-2 border border-gray-300 rounded-md">
+        <button class="template-button bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors" data-template="1">2店</button>
+      </div>
+	  
+	  <div class="flex flex flex-col md:flex-row gap-4 items-center justify-center">
+	    <label for="koubei3" class="mr-2 text-gray-700">口碑:</label>
+		<input type="number" id="koubei3" min="1" max="13" value="1" class="w-20 p-2 border border-gray-300 rounded-md">
+        <button class="template-button bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors" data-template="2">3店</button>
+      </div>
+	  <div class="flex flex flex-col md:flex-row gap-4 items-center justify-center">
+	    <label for="koubei4" class="mr-2 text-gray-700">口碑:</label>
+		<input type="number" id="koubei4" min="1" max="13" value="1" class="w-20 p-2 border border-gray-300 rounded-md">
+        <button class="template-button bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors" data-template="3">4店</button>
+      </div>
+	  <div class="flex flex flex-col md:flex-row gap-4 items-center justify-center">
+	    <label for="koubei5" class="mr-2 text-gray-700">口碑:</label>
+		<input type="number" id="koubei5" min="1" max="13" value="1" class="w-20 p-2 border border-gray-300 rounded-md">
+        <button class="template-button bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors" data-template="4">5店</button>
+      </div>
+	  <div class="flex flex flex-col md:flex-row gap-4 items-center justify-center">
+	    <label for="koubei6" class="mr-2 text-gray-700">口碑:</label>
+		<input type="number" id="koubei6" min="1" max="13" value="1" class="w-20 p-2 border border-gray-300 rounded-md">
+        <button class="template-button bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors" data-template="5">6店</button>
+      </div>
+	  <div class="flex flex flex-col md:flex-row gap-4 items-center justify-center">
+	    <label for="koubei7" class="mr-2 text-gray-700">口碑:</label>
+		<input type="number" id="koubei7" min="1" max="13" value="1" class="w-20 p-2 border border-gray-300 rounded-md">
+        <button class="template-button bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors" data-template="6">7店</button>
+      </div>
+	  
+    </div>
+    
+    <!-- 主要编辑区域 -->
+    <div id="editor" class="hidden flex flex-col md:flex-row gap-6">
+      <!-- 工具面板 -->
+      <div class="bg-white p-4 rounded-xl shadow-md w-full md:w-64">
+        <h2 class="text-xl font-bold mb-4 text-dark border-b pb-2">工具选择</h2>
+        
+        <div class="mb-6" id="base-elements">
+          <h3 class="text-sm uppercase text-gray-500 font-semibold mb-2">基本元素</h3>
+          <div class="flex flex-col">
+            <button data-tool="entrance" class="tool-button bg-entrance">
+              <i class="fa fa-arrow-down mr-2"></i> 入口
+            </button>
+            <button data-tool="exit" class="tool-button bg-exit">
+              <i class="fa fa-arrow-left mr-2"></i> 出口
+            </button>
+            <button data-tool="obstacle" class="tool-button bg-obstacle">
+              <i class="fa fa-ban mr-2"></i> 障碍物
+            </button>
+          </div>
+        </div>
+        
+        <div class="mb-6">
+          <h3 class="text-sm uppercase uppercase text-gray-500 font-semibold mb-2">货架</h3>
+          <div class="flex flex-col">
+            <!-- 1x1货架带颜色选择 -->
+            <div>
+              <button data-tool="shelf-1x1" class="tool-button bg-shelf1x1_1" id="shelf-1x1-button">
+                <div class="tool-shelf-preview">
+                  <div class="tool-shelf-1x1"></div>
+                </div>
+                1x1货架
+              </button>
+              <div class="color-options" id="shelf1x1-colors">
+                <div class="color-option fa fa-apple-whole" style="color: #EB3324;" data-color="shelf1x1_1" title="水果"></div>
+                <div class="color-option fa-brands fa-gulp" style="color: #3282F6;" data-color="shelf1x1_2" title="饮料"></div>
+                <div class="color-option fa-solid fa-carrot" style="color: #377E47;" data-color="shelf1x1_3" title="蔬菜"></div>
+				<div class="color-option fa-solid fa-cart-shopping" style="color: #000E6E;" data-color="shelf1x1_5" title="万能"></div>
+				<div class="color-option fa-solid fa-triangle-exclamation" style="color: #A3A3A3;" data-color="shelf1x1_4" title="路障"></div>
+              </div>
+            </div>
+            
+            <!-- 1x2货架带颜色选择 -->
+            <div class="relative mt-1">
+              <button data-tool="shelf-2x1" class="tool-button bg-shelf2x1_1" id="shelf-2x1-button">
+                <div class="tool-shelf-preview">
+                  <div class="tool-shelf-2x1-horizontal"></div>
+                </div>
+                2x1货架
+              </button>
+              <button id="rotate-shelf" class="rotate-button" title="旋转货架">
+                <i class="fa fa-refresh"></i>
+              </button>
+              <div class="color-options" id="shelf2x1-colors">
+                <div class="color-option fa-solid fa-pump-soap" style="color: #FEBCF2;" data-color="shelf2x1_1" title="日用"></div>
+                <div class="color-option fa-solid fa-basketball" style="color: #732BF5;" data-color="shelf2x1_2" title="体育"></div>
+                <div class="color-option fa-solid fa-mobile-screen-button" style="color: #0080C0;" data-color="shelf2x1_3" title="电子"></div>
+                <div class="color-option fa-regular fa-gem" style="color: #CCCA44;" data-color="shelf2x1_4" title="奢侈"></div>
+                <div class="color-option fa-solid fa-shirt" style="color: #367E7F;" data-color="shelf2x1_5" title="服装"></div>
+              </div>
+            </div>
+            
+            <!-- 2x2货架保持保持原有有颜色 -->
+            <button data-tool="shelf-2x2" class="tool-button bg-shelf2x2">
+              <div class="tool-shelf-preview">
+                <div class="tool-shelf-2x2">
+                  <div></div><div></div>
+                  <div></div><div></div>
+                </div>
+              </div>
+              2x2货架
+            </button>
+			<div class="color-options" id="shelf2x2-colors">
+                <div class="color-option fa-solid fa-desktop" style="color: #FF8000;" data-color="shelf2x2" title="电器货架"></div>
+              </div>
+          </div>
+        </div>
+        
+        <div class="mb-6">
+          <h3 class="text-sm uppercase text-gray-500 font-semibold mb-2">操作</h3>
+          <div class="flex flex-col">
+            <button id="delete-element" class="tool-button bg-danger">
+              <i class="fa fa-trash mr-2"></i> 删除元素
+            </button>
+            <button id="clear-room" class="tool-button bg-gray-500">
+              <i class="fa fa-refresh mr-2"></i> 清空房间
+            </button>
+          </div>
+        </div>
+        
+        <div class="mt-auto pt-4 border-t">
+          <div class="text-sm text-gray-600">
+            <p class="mb-1"><i class="fa fa-info-circle text-primary mr-1"></i> 提示：</p>
+            <ul class="list-disc list-inside text-xs">
+              <li>点击工具后点击网格放置</li>
+              <li>右键点击元素可删除</li>
+              <li>放置出口后自动计算路径</li>
+              <li>部分货架可选择颜色</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Canvas编辑区域 -->
+      <div class="flex-1">
+        <div class="bg-white p-4 rounded-xl shadow-md mb-4">
+          <div class="flex justify-between items-center mb-2">
+            <!--<h2 class="text-xl font-bold text-dark" id="roomName">房间布局</h2>-->
+			<div class="flex items-center">
+				<h2 class="text-xl font-bold text-dark mr-2" id="roomName">房间布局</h2>
+				
+				<button class="add-button bg-purple-500 hover:bg-purple-600 text-white p-2 rounded-full transition-colors" id="add-button" title="扩口" data-template="0">
+					<i class="fa-solid fa-cart-plus"></i>
+				</button>
+			</div>
+			<div class="flex gap-2">
+				<button class="save-button bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors" id="save-button" data-template="0" title="保存缓存">保存</button>
+				<button class="clear-button bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors" id="clear-button" data-template="0" title="删除缓存">删除</button>
+				<button class="export-button bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors" id="export-button" data-template="0" title="导出预设">导出</button>
+			</div>
+			
+            <div class="text-sm text-gray-600">
+              <span id="cell-coordinates">坐标: (0, 0)</span>
+            </div>
+          </div>
+		  
+		  <!-- 新增横向拖动条（滑块） -->
+		  <div class="mb-3" style="max-width: 200px;">
+			<input 
+			  type="range" 
+			  id="cellSizeSlider" 
+			  min="25" 
+			  max="50" 
+			  value="40" 
+			  title="40"
+			  class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
+			  oninput="changeCellSize(this.value);this.title = this.value"
+			>
+		  </div>
+          
+          <div id="path-status" class="mb-2 p-2 bg-green-50 text-green-700 rounded-lg hidden text-sm">
+            <i class="fa fa-check-circle mr-1"></i>
+            <span>路径已生成，长度: <span id="path-length">0</span></span>
+          </div>
+          
+          <div id="no-path" class="mb-2 p-2 bg-red-50 text-red-700 rounded-lg hidden text-sm">
+            <i class="fa fa-exclamation-circle mr-1"></i>
+            <span>路被遮挡，无有效路径</span>
+          </div>
+          
+          <div class="canvas-container">
+            <canvas id="editor-canvas" class="block"></canvas>
+          </div>
+        </div>
+        
+		<!--
+        <div class="bg-white p-4 rounded-xl shadow-md">
+          <h3 class="font-bold text-dark mb-2">货架统计</h3>
+          <ul class="text-sm text-gray-600 space-y-1">
+            <li><i class="fa fa-apple-whole mr-1" style="color: #EB3324;"></i> 水果货架 </li>
+            <li><i class="fa-brands fa-gulp mr-1" style="color: #3282F6;"></i> 饮料货架 </li>
+            <li><i class="fa-solid fa-carrot mr-1" style="color: #377E47;"></i> 蔬菜货架 </li>
+            <li><i class="fa-solid fa-pump-soap mr-1" style="color: #FEBCF2;"></i> 日用货架 </li>
+            <li><i class="fa-solid fa-basketball mr-1" style="color: #732BF5;"></i> 体育货架 </li>
+			<li><i class="fa-solid fa-mobile-screen-button mr-1" style="color: #0080C0;"></i> 电子货架 </li>
+			<li><i class="fa-regular fa-gem mr-1" style="color: #CCCA44;"></i> 奢侈货架 </li>
+			<li><i class="fa-solid fa-shirt mr-1" style="color: #367E7F;"></i> 服装货架 </li>
+			<li><i class="fa-solid fa-desktop mr-1" style="color: #FF8000;"></i> 电器货架 </li>
+          </ul>
+        </div>-->
+
+		<div class="bg-white p-4 rounded-xl shadow-md">
+		  <h3 class="font-bold text-dark mb-2">货架统计</h3>
+		  <table class="w-full text-sm">
+			<thead>
+			  <tr class="text-gray-500 border-b border-gray-200">
+				<th class="text-left pb-2">图标</th>
+				<th class="text-left pb-2">货架名称</th>
+				<th class="text-left pb-2">货架数</th>
+				<th class="text-left pb-2">售货面数</th>
+			  </tr>
+			</thead>
+			<!-- 预留 tbody，用于 JS 动态填充数据 -->
+			<tbody id="shelfTableBody" class="text-gray-600">
+			  <!-- JS 会在这里插入行 -->
+			</tbody>
+		  </table>
+		</div>
+		
+      </div>
+    </div>
+	
+	<!-- 导出弹窗 -->
+  <div id="exportModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 hidden opacity-0 transition-all duration-300">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto transform scale-95 transition-all duration-300">
+      <div class="p-6 border-b">
+        <div class="flex justify-between items-center mb-4">
+          <h3 class="text-xl font-bold text-dark flex items-center">
+            <i class="fa fa-download text-primary mr-2"></i>
+            导出预设配置
+          </h3>
+          <button id="closeModal" class="text-gray-400 hover:text-gray-600 transition-colors">
+            <i class="fa fa-times text-xl"></i>
+          </button>
+        </div>
+        
+        <!-- 导出表单 - 优化后版本 -->
+        <form id="exportForm" class="space-y-6">
+          <!-- 超市店面 -->
+          <div class="space-y-2">
+            <div class="flex items-center">
+              <label class="block text-sm font-medium text-gray-700">超市店面</label>
+              <div class="ml-2 has-tooltip relative">
+                <i class="fa fa-question-circle text-gray-400 cursor-help"></i>
+                <span class="tooltip -mt-8">
+                  超市店面，目前仅支持1-7店
+                </span>
+              </div>
+            </div>
+            <select name="store" class="w-full px-3 py-2 border border-gray-300 rounded-lg form-input-focus" disabled>
+              <option value="1">1店</option>
+              <option value="2">2店</option>
+              <option value="3">3店</option>
+              <option value="4">4店</option>
+              <option value="5">5店</option>
+              <option value="6">6店</option>
+              <option value="7">7店</option>
+            </select>
+          </div>
+          
+          <!-- 店面口碑 -->
+          <div class="space-y-2">
+            <div class="flex items-center">
+              <label class="block text-sm font-medium text-gray-700">店面口碑</label>
+              <div class="ml-2 has-tooltip relative">
+                <i class="fa fa-question-circle text-gray-400 cursor-help"></i>
+                <span class="tooltip -mt-8">
+                  该口碑对应实际店面口碑，如果该店面解锁口碑不足，可能导致预设加载异常。
+                </span>
+              </div>
+            </div>
+            <input 
+              type="number" 
+              name="reputation" 
+              min="1" 
+              max="13" 
+              value="7" 
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg form-input-focus"
+            >
+          </div>
+          
+          <!-- 预设槽位 -->
+          <div class="space-y-2">
+            <div class="flex items-center">
+              <label class="block text-sm font-medium text-gray-700">预设槽位</label>
+              <div class="ml-2 has-tooltip relative">
+                <i class="fa fa-question-circle text-gray-400 cursor-help"></i>
+                <span class="tooltip -mt-8">
+                  对应游戏内的预设槽位
+                </span>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-5 gap-3">
+              <label class="flex flex-col items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                <input type="radio" name="slot" value="0" checked class="mr-2 text-primary">
+                <span class="mt-1">槽位1</span>
+              </label>
+              <label class="flex flex-col items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                <input type="radio" name="slot" value="1" class="mr-2 text-primary">
+                <span class="mt-1">槽位2</span>
+              </label>
+              <label class="flex flex-col items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                <input type="radio" name="slot" value="2" class="mr-2 text-primary">
+                <span class="mt-1">槽位3</span>
+              </label>
+              <label class="flex flex-col items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                <input type="radio" name="slot" value="3" class="mr-2 text-primary">
+                <span class="mt-1">槽位4</span>
+              </label>
+              <label class="flex flex-col items-center p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors">
+                <input type="radio" name="slot" value="4" class="mr-2 text-primary">
+                <span class="mt-1">槽位5</span>
+              </label>
+            </div>
+          </div>
+          
+          <!-- 布局名称 -->
+          <div class="space-y-2">
+            <label class="block text-sm font-medium text-gray-700">布局名称</label>
+            <input 
+              type="text" 
+              name="layoutName" 
+              id="layoutName"
+              value="布局预设1" 
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg form-input-focus"
+            >
+          </div>
+          
+          <!-- 布局描述 -->
+          <div class="space-y-2">
+            <label class="block text-sm font-medium text-gray-700">布局描述</label>
+            <input 
+              type="text" 
+              name="layoutDesc" 
+              value="无描述" 
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg form-input-focus"
+            >
+          </div>
+          
+          <!-- 文件名称 -->
+          <div class="space-y-2">
+            <label class="block text-sm font-medium text-gray-700">文件名称</label>
+            <input 
+              type="text" 
+              name="fileName" 
+              id="fileName"
+              value="layout_0.json" 
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg form-input-focus"
+            >
+          </div>
+		  
+		  <!-- 货架等级 -->
+        <div class="space-y-2">
+		  <div class="flex items-center">
+			  <label class="block text-sm font-medium text-gray-700">货架等级</label>
+			  <div class="ml-2 has-tooltip relative">
+				  <i class="fa fa-question-circle text-gray-400 cursor-help"></i>
+				  <span class="tooltip -mt-8">
+					10级以上的货架才会镶嵌宝石。
+				  </span>
+			  </div>
+		  </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- 普货货架等级 -->
+            <div class="space-y-1">
+              <label class="block text-xs text-gray-500">普货（1-60级）</label>
+              <input 
+                type="number" 
+                name="commonShelfLevel" 
+                min="1" 
+                max="60" 
+                value="60" 
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg form-input-focus"
+              >
+            </div>
+            <!-- 万能货架等级 -->
+            <div class="space-y-1">
+              <label class="block text-xs text-gray-500">万能（1-70级）</label>
+              <input 
+                type="number" 
+                name="universalShelfLevel" 
+                min="1" 
+                max="70" 
+                value="70" 
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg form-input-focus"
+              >
+            </div>
+          </div>
+        </div>
+        
+        <!-- 多面宝石 -->
+        <div class="space-y-2">
+          <div class="flex items-center">
+            <label class="block text-sm font-medium text-gray-700">多面宝石</label>
+            <div class="ml-2 has-tooltip relative">
+              <i class="fa fa-question-circle text-gray-400 cursor-help"></i>
+              <span class="tooltip -mt-8">
+                所有10级以上的货架都会镶嵌该宝石，请保持仓库宝石充足。
+              </span>
+            </div>
+          </div>
+          <select name="multiFacetGem" class="w-full px-3 py-2 border border-gray-300 rounded-lg form-input-focus">
+            <option value="0">无</option>
+            <option value="1">双面宝石</option>
+            <option value="2">四面宝石</option>
+            <option value="3" selected>八面宝石</option>
+          </select>
+        </div>
+        
+        <!-- 容量宝石 -->
+        <div class="space-y-2">
+          <div class="flex items-center">
+            <label class="block text-sm font-medium text-gray-700">容量宝石</label>
+            <div class="ml-2 has-tooltip relative">
+              <i class="fa fa-question-circle text-gray-400 cursor-help"></i>
+              <span class="tooltip -mt-8">
+                所有10级以上的货架都会镶嵌该宝石，请保持仓库宝石充足。
+              </span>
+            </div>
+          </div>
+          <select name="capacityGem" class="w-full px-3 py-2 border border-gray-300 rounded-lg form-input-focus">
+            <option value="0">无</option>
+            <option value="1">Lv1</option>
+            <option value="2">Lv2</option>
+            <option value="3">Lv3</option>
+            <option value="4">Lv4</option>
+            <option value="5">Lv5</option>
+            <option value="6">Lv6</option>
+            <option value="7">Lv7</option>
+            <option value="8">Lv8</option>
+            <option value="9" selected>Lv9</option>
+          </select>
+        </div>
+        
+        <!-- 售货宝石 -->
+        <div class="space-y-2">
+          <div class="flex items-center">
+            <label class="block text-sm font-medium text-gray-700">售货宝石</label>
+            <div class="ml-2 has-tooltip relative">
+              <i class="fa fa-question-circle text-gray-400 cursor-help"></i>
+              <span class="tooltip -mt-8">
+                所有10级以上的货架都会镶嵌该宝石，请保持仓库宝石充足。
+              </span>
+            </div>
+          </div>
+          <select name="salesGem" class="w-full px-3 py-2 border border-gray-300 rounded-lg form-input-focus">
+            <option value="0">无</option>
+            <option value="1">Lv1</option>
+            <option value="2">Lv2</option>
+            <option value="3">Lv3</option>
+            <option value="4">Lv4</option>
+            <option value="5">Lv5</option>
+            <option value="6">Lv6</option>
+            <option value="7">Lv7</option>
+            <option value="8">Lv8</option>
+            <option value="9" selected>Lv9</option>
+          </select>
+        </div>
+          
+        </form>
+      </div>
+      
+      <!-- 弹窗底部按钮 -->
+      <div class="p-4 bg-gray-50 flex justify-end space-x-3 border-t">
+        <button id="cancelExport" class="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors">
+          取消
+        </button>
+        <button id="confirmExport" class="px-6 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 shadow-md scale-hover flex items-center">
+          <i class="fa fa-check mr-2"></i>
+          确认导出
+        </button>
+      </div>
+    </div>
+	
+  </div>
+
+  <script>
+    // 全局变量 - 新增缩放相关变量
+    let grid = [];
+    let rows = 8;
+    let columns = 12;
+    let cellSize = 50; // 基础单元格大小
+	let arrowSize = 16;
+    let scale = 1;     // 缩放比例
+    let canvas = null;
+    let ctx = null;
+    let selectedTool = null;
+    let shelfRotation = 0; // 0: 2x1, 1: 1x2
+    let entrance = null;
+    let exit = null;
+    let path = [];
+	let calcPath = [];
+    let isDeleteMode = false;
+    let mouseX = 0;
+    let mouseY = 0;
+    let hoveredCell = { x: -1, y: -1 };
+    let fontLoaded = false;
+	let shelfMap = new Map();
+	let mockRoom = false;
+	let defaultRaputation = 1;
+	const exportModal = document.getElementById('exportModal');
+	const templateLoaderDiv = document.getElementById('template-loader');
+	const tableBody = document.getElementById('shelfTableBody');
+	const slider = document.getElementById('cellSizeSlider');
+	const slotRadios = document.querySelectorAll('input[name="slot"]');
+	const layoutNameInput = document.getElementById('layoutName');
+    const fileNameInput = document.getElementById('fileName');
+	const closeModal = document.getElementById('closeModal');
+    const cancelExport = document.getElementById('cancelExport');
+	const exportButton = document.getElementById('export-button');
+	const confirmExport = document.getElementById('confirmExport');
+	const exportForm = document.getElementById('exportForm');
+	
+	const storeSelect = document.querySelector('select[name="store"]');
+	const reputationInput = document.querySelector('input[name="reputation"]');
+	
+	const commonShelfLevelInupt = document.querySelector('input[name="commonShelfLevel"]');
+	const universalShelfLevelInput = document.querySelector('input[name="universalShelfLevel"]');
+	
+	const shelfData = [
+		  {
+			iconClass: 'fa-apple-whole', // 图标类名
+			iconColor: '#EB3324',       // 图标颜色
+			name: '水果货架',            // 货架名称
+			shelfCount: 0,              // 货架数（可自行填充实际数据）
+			surfaceCount: 0             // 售货面数（可自行填充实际数据）
+		  },
+		  {
+			iconClass: 'fa-brands fa-gulp',
+			iconColor: '#3282F6',
+			name: '饮料货架',
+			shelfCount: 0,
+			surfaceCount: 0
+		  },
+		  {
+			iconClass: 'fa-solid fa-carrot',
+			iconColor: '#377E47',
+			name: '蔬菜货架',
+			shelfCount: 0,
+			surfaceCount: 0
+		  },
+		  {
+			iconClass: 'fa-solid fa-pump-soap',
+			iconColor: '#FEBCF2',
+			name: '日用货架',
+			shelfCount: 0,
+			surfaceCount: 0
+		  },
+		  {
+			iconClass: 'fa-solid fa-basketball',
+			iconColor: '#732BF5',
+			name: '体育货架',
+			shelfCount: 0,
+			surfaceCount: 0
+		  },
+		  {
+			iconClass: 'fa-solid fa-mobile-screen-button',
+			iconColor: '#0080C0',
+			name: '电子货架',
+			shelfCount: 0,
+			surfaceCount: 0
+		  },
+		  {
+			iconClass: 'fa-regular fa-gem',
+			iconColor: '#CCCA44',
+			name: '奢侈货架',
+			shelfCount: 0,
+			surfaceCount: 0
+		  },
+		  {
+			iconClass: 'fa-solid fa-shirt',
+			iconColor: '#367E7F',
+			name: '服装货架',
+			shelfCount: 0,
+			surfaceCount: 0
+		  },
+		  {
+			iconClass: 'fa-solid fa-desktop',
+			iconColor: '#FF8000',
+			name: '电器货架',
+			shelfCount: 0,
+			surfaceCount: 0
+		  },
+		  {
+			iconClass: 'fa-solid fa-cart-shopping',
+			iconColor: '#000E6E',
+			name: '万能货架',
+			shelfCount: 0,
+			surfaceCount: 0
+		  }
+    ];
+	const roomData = [
+	  [
+		[0x11, 0x11, 0x11, 0x11, 0x10, 0x12, 0x10, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA1, 0xA1, 0xA1, 0xA1],
+		[0x11, 0x11, 0x11, 0x10, 0x10, 0x10, 0x10, 0x40, 0x40, 0x41, 0x41, 0x40, 0x40, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA1, 0xA1, 0xA1, 0xA1],
+		[0x11, 0x11, 0x11, 0x10, 0x10, 0x10, 0x10, 0x40, 0x40, 0x41, 0x41, 0x40, 0x40, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xA0, 0xA1, 0xA1],
+		[0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x20, 0x40, 0x40, 0x41, 0x41, 0x40, 0x40, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x11, 0x11, 0x10, 0x20, 0x20, 0x20, 0x20, 0x30, 0x30, 0x30, 0x40, 0x40, 0x40, 0x71, 0x71, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x13, 0x10, 0x10, 0x20, 0x20, 0x20, 0x20, 0x30, 0x30, 0x30, 0x41, 0x41, 0x40, 0x71, 0x71, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x10, 0x10, 0x10, 0x20, 0x20, 0x20, 0x21, 0x31, 0x30, 0x30, 0x61, 0x61, 0x60, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x50, 0x50, 0x50, 0x50, 0x30, 0x30, 0x31, 0x31, 0x31, 0x30, 0x61, 0x61, 0x60, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x50, 0x50, 0x50, 0x50, 0x30, 0x30, 0x30, 0x31, 0x30, 0x30, 0x60, 0x60, 0x60, 0x90, 0x90, 0x90, 0x90, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0],
+		[0x50, 0x51, 0x51, 0x51, 0x30, 0x30, 0x30, 0x30, 0x30, 0x60, 0x60, 0x60, 0x60, 0x90, 0x90, 0x90, 0x90, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0],
+		[0x50, 0x51, 0x51, 0x51, 0x50, 0x51, 0x61, 0x61, 0x60, 0x60, 0x60, 0x60, 0x60, 0x90, 0x90, 0x90, 0x90, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0],
+		[0x50, 0x50, 0x50, 0x50, 0x50, 0x51, 0x61, 0x61, 0x60, 0x60, 0x60, 0x60, 0x61, 0x90, 0x90, 0x90, 0x90, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0],
+		[0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x60, 0x60, 0x60, 0x60, 0x60, 0x61, 0x61, 0x91, 0x90, 0x90, 0x90, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0],
+		[0x80, 0x80, 0x80, 0x80, 0x81, 0x81, 0x80, 0x80, 0x90, 0x90, 0x90, 0x90, 0x91, 0x91, 0x90, 0x90, 0x90, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0],
+		[0x80, 0x80, 0x80, 0x80, 0x81, 0x81, 0x80, 0x80, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0xC0, 0xC0, 0xC0, 0xC0, 0xC1, 0xC1, 0xC1],
+		[0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0xC0, 0xC0, 0xC0, 0xC0, 0xC1, 0xC1, 0xC1],
+		[0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0xB0, 0xB0, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0xC0, 0xC0, 0xC0, 0xC0, 0xC1, 0xC1, 0xC1],
+		[0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0xB0, 0xB0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xB1, 0xB1, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xB1, 0xB1, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD1, 0xD1, 0xD1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xB1, 0xB1, 0xB1, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD1, 0xD1, 0xD1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xB1, 0xB1, 0xB1, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD1, 0xD1, 0xD1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1]
+	  ],
+	  [
+		[0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x10, 0x10, 0x10, 0x12, 0x10, 0x31, 0x31, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0xA1, 0xA1, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x10, 0x10, 0x10, 0x10, 0x10, 0x31, 0x31, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0xA1, 0xA1, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x11, 0x11, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x31, 0x31, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x13, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x30, 0x30, 0x60, 0x60, 0x80, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x10, 0x10, 0x10, 0x10, 0x20, 0x20, 0x20, 0x30, 0x31, 0x31, 0x31, 0x30, 0x30, 0x60, 0x60, 0x80, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x30, 0x31, 0x31, 0x31, 0x30, 0x30, 0x60, 0x60, 0x80, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x20, 0x20, 0x20, 0x21, 0x21, 0x21, 0x20, 0x30, 0x31, 0x31, 0x31, 0x30, 0x30, 0x60, 0x60, 0x81, 0x81, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x20, 0x20, 0x20, 0x21, 0x21, 0x21, 0x20, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x60, 0x60, 0x81, 0x81, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xA1, 0xA1, 0xA1],
+		[0x20, 0x20, 0x20, 0x21, 0x21, 0x21, 0x20, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x60, 0x60, 0x80, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xA1, 0xA1, 0xA1],
+		[0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x60, 0x60, 0x80, 0x80, 0x80, 0x80, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0],
+		[0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x50, 0x50, 0x51, 0x51, 0x51, 0x50, 0x60, 0x60, 0x70, 0x70, 0x70, 0x70, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0],
+		[0x40, 0x40, 0x40, 0x40, 0x41, 0x41, 0x40, 0x50, 0x50, 0x51, 0x51, 0x51, 0x50, 0x60, 0x60, 0x70, 0x70, 0x70, 0x70, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0],
+		[0x40, 0x40, 0x40, 0x40, 0x41, 0x41, 0x40, 0x50, 0x50, 0x51, 0x51, 0x51, 0x50, 0x60, 0x60, 0x70, 0x70, 0x70, 0x70, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0],
+		[0x40, 0x40, 0x40, 0x40, 0x41, 0x41, 0x40, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x71, 0x71, 0x70, 0x70, 0x70, 0x70, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0],
+		[0x90, 0x90, 0x40, 0x40, 0x40, 0x40, 0x40, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x71, 0x71, 0x70, 0x70, 0x70, 0x70, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0],
+		[0x90, 0x90, 0x40, 0x40, 0x40, 0x40, 0x40, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0],
+		[0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x91, 0x91, 0x90, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0],
+		[0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x91, 0x91, 0x90, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xD0, 0xD0, 0xD0, 0xD0, 0xD1, 0xD1],
+		[0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xD0, 0xD0, 0xD0, 0xD0, 0xD1, 0xD1],
+		[0xB1, 0xB1, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xB1, 0xB1, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB1, 0xB1, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB1, 0xB1, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC1, 0xC1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB1, 0xB1, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC1, 0xC1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1]
+	  ],
+	  [
+		[0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x10, 0x12, 0x10, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x10, 0x10, 0x10, 0x30, 0x31, 0x31, 0x31, 0x31, 0x30, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x11, 0x11, 0x11, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x30, 0x31, 0x31, 0x31, 0x31, 0x30, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x11, 0x11, 0x11, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x30, 0x31, 0x31, 0x31, 0x31, 0x30, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x11, 0x11, 0x11, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x10, 0x10, 0x10, 0x10, 0x11, 0x11, 0x21, 0x20, 0x20, 0x20, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x11, 0x11, 0x10, 0x10, 0x11, 0x21, 0x21, 0x20, 0x20, 0x20, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x80, 0x80, 0x80, 0xA0, 0xA1, 0xA1, 0xC1, 0xC0, 0xC0],
+		[0x13, 0x10, 0x10, 0x10, 0x11, 0x21, 0x21, 0x20, 0x20, 0x20, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x80, 0x80, 0x80, 0xA0, 0xA1, 0xA1, 0xC1, 0xC0, 0xC0],
+		[0x10, 0x10, 0x10, 0x10, 0x21, 0x21, 0x21, 0x20, 0x20, 0x41, 0x41, 0x41, 0x40, 0x40, 0x40, 0x40, 0x80, 0x80, 0x80, 0xA0, 0xA1, 0xA1, 0xC1, 0xC0, 0xC0],
+		[0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x61, 0x61, 0x41, 0x40, 0x40, 0x40, 0x40, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x60, 0x61, 0x61, 0x41, 0x40, 0x40, 0x40, 0x40, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x60, 0x60, 0x60, 0x60, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x80, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x50, 0x51, 0x51, 0x51, 0x51, 0x51, 0x50, 0x50, 0x60, 0x60, 0x60, 0x60, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x80, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x50, 0x51, 0x51, 0x51, 0x51, 0x51, 0x50, 0x50, 0x60, 0x60, 0x60, 0x60, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x60, 0x61, 0x61, 0x61, 0x61, 0x61, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x70, 0x70, 0x70, 0x71, 0x71, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x70, 0x70, 0x70, 0x71, 0x71, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB1, 0xB1, 0xB1, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB1, 0xB1, 0xB1, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD1, 0xD1, 0xD1, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1]
+	  ],
+	  [
+		[0x11, 0x11, 0x11, 0x10, 0x12, 0x10, 0x10, 0x31, 0x31, 0x30, 0x30, 0x30, 0x30, 0x30, 0x70, 0x70, 0x70, 0x71, 0x71, 0xA1, 0xA1, 0xA1, 0xC0, 0xC0, 0xC0],
+		[0x11, 0x11, 0x11, 0x10, 0x10, 0x10, 0x10, 0x31, 0x31, 0x30, 0x30, 0x30, 0x30, 0x30, 0x70, 0x70, 0x70, 0x70, 0x71, 0xA1, 0xA1, 0xA1, 0xC0, 0xC0, 0xC0],
+		[0x11, 0x11, 0x11, 0x10, 0x10, 0x10, 0x10, 0x30, 0x30, 0x30, 0x30, 0x31, 0x31, 0x30, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x11, 0x11, 0x10, 0x11, 0x11, 0x10, 0x10, 0x20, 0x20, 0x20, 0x20, 0x31, 0x31, 0x30, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x13, 0x10, 0x10, 0x11, 0x11, 0x10, 0x10, 0x20, 0x20, 0x20, 0x20, 0x31, 0x31, 0x30, 0x50, 0x50, 0x50, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x20, 0x21, 0x21, 0x20, 0x30, 0x30, 0x30, 0x50, 0x50, 0x50, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x20, 0x21, 0x21, 0x20, 0x20, 0x20, 0x20, 0x50, 0x50, 0x50, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x41, 0x41, 0x40, 0x20, 0x20, 0x20, 0x20, 0x20, 0x21, 0x21, 0x20, 0x20, 0x20, 0x20, 0x50, 0x50, 0x50, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x41, 0x41, 0x40, 0x20, 0x20, 0x21, 0x21, 0x21, 0x21, 0x21, 0x21, 0x20, 0x20, 0x20, 0x51, 0x51, 0x50, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC1],
+		[0x40, 0x40, 0x40, 0x20, 0x20, 0x21, 0x21, 0x21, 0x21, 0x20, 0x20, 0x20, 0x20, 0x20, 0x51, 0x51, 0x50, 0x90, 0x90, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC1],
+		[0x40, 0x40, 0x40, 0x20, 0x20, 0x20, 0x20, 0x20, 0x21, 0x20, 0x61, 0x51, 0x51, 0x50, 0x50, 0x50, 0x50, 0x90, 0x90, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x40, 0x40, 0x41, 0x41, 0x41, 0x40, 0x20, 0x20, 0x20, 0x20, 0x61, 0x61, 0x51, 0x50, 0x50, 0x50, 0x50, 0x90, 0x90, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x40, 0x40, 0x41, 0x41, 0x41, 0x40, 0x20, 0x20, 0x20, 0x20, 0x61, 0x61, 0x61, 0x50, 0x50, 0x50, 0x50, 0x90, 0x90, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x20, 0x20, 0x20, 0x20, 0x60, 0x60, 0x60, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x80, 0x80, 0x80, 0x80, 0x60, 0x60, 0x60, 0x60, 0x61, 0x61, 0x60, 0x60, 0x60, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x80, 0x80, 0x80, 0x80, 0x60, 0x60, 0x60, 0x60, 0x61, 0x61, 0x60, 0x60, 0x60, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x80, 0x80, 0x80, 0x80, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0xA0, 0xA0, 0xA0, 0xC0, 0xC1, 0xC1],
+		[0x81, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0xA0, 0xA0, 0xA0, 0xC0, 0xC1, 0xC1],
+		[0x81, 0x81, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0xA0, 0xA0, 0xA0, 0xC0, 0xC1, 0xC1],
+		[0xB1, 0xB1, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xB1, 0xB1, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xB1, 0xB1, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD1, 0xD1, 0xD1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD1, 0xD1, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD1, 0xD1, 0xD1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1]
+	  ],
+	  [
+		[0x10, 0x10, 0x10, 0x10, 0x31, 0x31, 0x31, 0x31, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x10, 0x10, 0x10, 0x10, 0x31, 0x31, 0x31, 0x31, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x12, 0x10, 0x10, 0x10, 0x31, 0x31, 0x31, 0x31, 0x30, 0x30, 0x30, 0x31, 0x31, 0x30, 0x30, 0x30, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x10, 0x10, 0x10, 0x10, 0x20, 0x20, 0x20, 0x20, 0x20, 0x30, 0x30, 0x31, 0x31, 0x30, 0x30, 0x30, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x10, 0x10, 0x10, 0x10, 0x20, 0x20, 0x20, 0x20, 0x20, 0x30, 0x30, 0x31, 0x31, 0x30, 0x30, 0x30, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x11, 0x11, 0x10, 0x10, 0x21, 0x21, 0x21, 0x20, 0x20, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x70, 0x70, 0x71, 0x71, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x11, 0x11, 0x10, 0x10, 0x21, 0x21, 0x21, 0x20, 0x20, 0x20, 0x41, 0x41, 0x41, 0x41, 0x40, 0x40, 0x40, 0x70, 0x71, 0x71, 0x70, 0x70, 0x70, 0xA1, 0xA1, 0xA1, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x11, 0x11, 0x11, 0x10, 0x21, 0x21, 0x21, 0x20, 0x20, 0x20, 0x41, 0x41, 0x41, 0x41, 0x40, 0x40, 0x40, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA1, 0xA1, 0xA1, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x11, 0x11, 0x11, 0x10, 0x21, 0x21, 0x21, 0x20, 0x20, 0x20, 0x41, 0x41, 0x41, 0x41, 0x40, 0x40, 0x40, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x10, 0x10, 0x10, 0x10, 0x20, 0x20, 0x20, 0x20, 0x20, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x11, 0x11, 0x10, 0x10, 0x20, 0x20, 0x20, 0x20, 0x20, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x13, 0x10, 0x10, 0x10, 0x51, 0x51, 0x51, 0x51, 0x50, 0x50, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x10, 0x10, 0x10, 0x10, 0x51, 0x51, 0x51, 0x51, 0x50, 0x50, 0x60, 0x61, 0x61, 0x61, 0x60, 0x60, 0x60, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0],
+		[0x10, 0x10, 0x10, 0x10, 0x51, 0x51, 0x51, 0x51, 0x50, 0x50, 0x60, 0x61, 0x61, 0x61, 0x60, 0x60, 0x60, 0x80, 0x80, 0x80, 0x80, 0x80, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0],
+		[0x90, 0x90, 0x90, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x60, 0x61, 0x61, 0x61, 0x60, 0x60, 0x60, 0x80, 0x80, 0x80, 0x80, 0x80, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0],
+		[0x90, 0x90, 0x90, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x60, 0x61, 0x61, 0x61, 0x60, 0x60, 0x60, 0x80, 0x80, 0x80, 0x80, 0x80, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0],
+		[0x90, 0x90, 0x90, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x80, 0x80, 0x80, 0x80, 0x80, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0],
+		[0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x80, 0x80, 0x80, 0x80, 0x80, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0],
+		[0x90, 0x90, 0x90, 0x90, 0x90, 0x91, 0x91, 0x90, 0x90, 0x90, 0x90, 0x90, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0],
+		[0x90, 0x90, 0x90, 0x90, 0x90, 0x91, 0x91, 0x90, 0x90, 0x90, 0x90, 0x90, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x81, 0x81, 0x80, 0x80, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0],
+		[0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x81, 0x81, 0x80, 0x80, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0],
+		[0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC1, 0xC1],
+		[0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB1, 0xB1, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC1, 0xC1],
+		[0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB1, 0xB1, 0xB0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xC0, 0xC0, 0xC0, 0xC0, 0xC1, 0xC1],
+		[0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB1, 0xB1, 0xB0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD1, 0xD1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD1, 0xD1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD1, 0xD1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1]
+	  ],
+	  [
+		[0x11, 0x11, 0x11, 0x11, 0x10, 0x10, 0x11, 0x11, 0x11, 0x11, 0x11, 0x10, 0x12, 0x10, 0x10, 0x80, 0x80, 0x80, 0x81, 0x81, 0x80, 0x80, 0x80, 0x80, 0xA0, 0xA1, 0xA1, 0xC0, 0xC0, 0xC0],
+		[0x11, 0x11, 0x13, 0x10, 0x10, 0x10, 0x11, 0x11, 0x11, 0x11, 0x11, 0x10, 0x10, 0x10, 0x10, 0x80, 0x80, 0x80, 0x81, 0x81, 0x80, 0x80, 0x80, 0x80, 0xA0, 0xA1, 0xA1, 0xC0, 0xC0, 0xC0],
+		[0x11, 0x11, 0x11, 0x11, 0x10, 0x10, 0x11, 0x11, 0x11, 0x11, 0x11, 0x10, 0x10, 0x10, 0x10, 0x60, 0x60, 0x60, 0x60, 0x80, 0x80, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x11, 0x11, 0x11, 0x11, 0x10, 0x10, 0x11, 0x11, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x60, 0x60, 0x60, 0x60, 0x80, 0x80, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x11, 0x11, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x60, 0x60, 0x60, 0x60, 0x80, 0x80, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x20, 0x20, 0x20, 0x20, 0x21, 0x21, 0x21, 0x20, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x40, 0x60, 0x60, 0x60, 0x60, 0x80, 0x80, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x20, 0x20, 0x20, 0x20, 0x21, 0x21, 0x21, 0x20, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x60, 0x60, 0x60, 0x60, 0x80, 0x80, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x20, 0x20, 0x20, 0x20, 0x21, 0x21, 0x21, 0x20, 0x41, 0x41, 0x40, 0x40, 0x40, 0x40, 0x41, 0x61, 0x61, 0x60, 0x60, 0x80, 0x80, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x41, 0x41, 0x40, 0x40, 0x40, 0x40, 0x41, 0x61, 0x61, 0x60, 0x60, 0x80, 0x80, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x31, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x41, 0x41, 0x40, 0x40, 0x40, 0x40, 0x41, 0x61, 0x61, 0x60, 0x60, 0x80, 0x80, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x31, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x41, 0x41, 0x40, 0x40, 0x40, 0x40, 0x41, 0x61, 0x61, 0x60, 0x60, 0x80, 0x80, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x60, 0x60, 0x60, 0x60, 0x80, 0x80, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x30, 0x30, 0x30, 0x30, 0x31, 0x31, 0x31, 0x30, 0x51, 0x51, 0x51, 0x51, 0x51, 0x51, 0x50, 0x60, 0x60, 0x60, 0x60, 0x70, 0x70, 0x70, 0xA1, 0xA1, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x30, 0x30, 0x30, 0x30, 0x31, 0x31, 0x31, 0x30, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x60, 0x60, 0x60, 0x60, 0x70, 0x70, 0x70, 0xA1, 0xA1, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x30, 0x30, 0x30, 0x30, 0x31, 0x31, 0x31, 0x30, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x60, 0x60, 0x60, 0x60, 0x70, 0x70, 0x70, 0xA1, 0xA1, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x90, 0x91, 0x91, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x90, 0x91, 0x91, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x70, 0x70, 0x70, 0x71, 0x71, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x70, 0x70, 0x70, 0x71, 0x71, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xC0, 0xC0, 0xC0],
+		[0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xC0, 0xC1, 0xC1],
+		[0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xA0, 0xA0, 0xA0, 0xA0, 0xA0, 0xC0, 0xC1, 0xC1],
+		[0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB1, 0xB1, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB1, 0xB1, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD1, 0xD1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1],
+		[0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD1, 0xD1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1, 0xF1]
+	  ],
+	  [
+		[0x11, 0x11, 0x10, 0x10, 0x10, 0x12, 0x10, 0x10, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x71, 0x71, 0x71, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0],
+		[0x11, 0x11, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x71, 0x71, 0x71, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0],
+		[0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0],
+		[0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0],
+		[0x11, 0x11, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0],
+		[0x13, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0],
+		[0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x11, 0x11, 0x31, 0x31, 0x30, 0x30, 0x30, 0x30, 0x30, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0],
+		[0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x11, 0x11, 0x31, 0x31, 0x30, 0x30, 0x30, 0x30, 0x30, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0x70, 0xA0, 0xA0, 0xA0],
+		[0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x21, 0x21, 0x41, 0x41, 0x40, 0x40, 0x40, 0x40, 0x40, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0],
+		[0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x21, 0x21, 0x41, 0x41, 0x40, 0x40, 0x40, 0x40, 0x40, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0],
+		[0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0],
+		[0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0],
+		[0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0],
+		[0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0xA0, 0xA0, 0xA0],
+		[0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x40, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0xC0, 0xC0, 0xC0],
+		[0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0xC0, 0xC0, 0xC0],
+		[0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0xC0, 0xC0, 0xC0],
+		[0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0xC0, 0xC0, 0xC0],
+		[0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0xC0, 0xC0, 0xC0],
+		[0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0xC0, 0xC0, 0xC0],
+		[0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0xC0, 0xC0, 0xC0],
+		[0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0xC0, 0xC0, 0xC0],
+		[0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x91, 0x91, 0x91, 0xC0, 0xC0, 0xC0],
+		[0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x51, 0x51, 0x61, 0x61, 0x60, 0x60, 0x60, 0x60, 0x60, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x91, 0x91, 0x91, 0xC0, 0xC0, 0xC0],
+		[0x50, 0x50, 0x50, 0x50, 0x50, 0x50, 0x51, 0x51, 0x61, 0x61, 0x60, 0x60, 0x60, 0x60, 0x60, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x90, 0x91, 0x91, 0x91, 0xC0, 0xC0, 0xC0],
+		[0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0],
+		[0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0],
+		[0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xB0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0, 0xD0]
+	  ],
+	];
+	
+    
+    // 货架颜色设置
+    let shelfColors = {
+      'shelf-1x1': 'shelf1x1_1',  // 默认1x1货架颜色
+      'shelf-2x1': 'shelf2x1_1'   // 默认1x2货架颜色
+    };
+    
+    // 元素类型定义
+    const ElementTypes = {
+      EMPTY: 'empty',
+      ENTRANCE: 'entrance',
+      EXIT: 'exit',
+      OBSTACLE: 'obstacle',
+      SHELF_1x1: 'shelf-1x1',
+      SHELF_2x1: 'shelf-2x1',
+      SHELF_2x2: 'shelf-2x2'
+    };
+    
+    // 元素颜色映射
+    const ElementColors = {
+      [ElementTypes.EMPTY]: '#FFFFFF',
+      [ElementTypes.ENTRANCE]: '#60A5FA',
+      [ElementTypes.EXIT]: '#F87171',
+      [ElementTypes.OBSTACLE]: '#6B7280',
+      'shelf1x1_1': '#EB3324', // 水果
+      'shelf1x1_2': '#3282F6', // 饮料
+      'shelf1x1_3': '#377E47', // 蔬菜
+	  'shelf1x1_4': '#A3A3A3', // 路障
+	  'shelf1x1_5': '#000E6E', // 万能
+      'shelf2x1_1': '#FEBCF2', // 日用
+      'shelf2x1_2': '#732BF5', // 体育
+      'shelf2x1_3': '#0080C0', // 电子
+      'shelf2x1_4': '#CCCA44', // 奢侈
+      'shelf2x1_5': '#367E7F', // 服装
+      [ElementTypes.SHELF_2x2]: '#FF8000',
+      path: '#FBBF24',     // 路径主色
+      pathBg: '#FFF3C4',    // 路径背景色
+      pathArrowCircle: '#FFFFFF', // 路径箭头圆圈颜色
+	  cashRegister: '#FF0080',//收银台
+    };
+	
+	const presets = {
+		"nVersion": 1,
+		"szModID": "",
+		"nSlotIndex": 2,
+		"szName": "布局预设3",
+		"szDesc": "无描述",
+		"szIconPath": "icon/室内装饰/20030",
+		"nSceneID": 5,
+		"nScenePraise": 10,
+		"nCreateTime": 1762412248,
+		"doodadLayoutDataList": []
+	}
+    
+    // 初始化函数
+    function init() {
+      // 绑定事件
+      document.getElementById('create-room').addEventListener('click', createRoom);
+      document.getElementById('rotate-shelf').addEventListener('click', toggleShelfRotation);
+      document.getElementById('delete-element').addEventListener('click', toggleDeleteMode);
+      document.getElementById('clear-room').addEventListener('click', clearRoom);
+	  
+	  // 事件监听
+      closeModal.addEventListener('click', hideModal);
+      cancelExport.addEventListener('click', hideModal);
+      confirmExport.addEventListener('click', handleExport);
+	  reputationInput.addEventListener('input', handleReputationInput);
+      reputationInput.addEventListener('blur', handleReputationInput);
+	  
+	  commonShelfLevelInupt.addEventListener('input', () => handleLevelInput(0, commonShelfLevelInupt));
+	  universalShelfLevelInput.addEventListener('input', () => handleLevelInput(1, universalShelfLevelInput));
+	  commonShelfLevelInupt.addEventListener('blur', () => handleLevelInput(0, commonShelfLevelInupt));
+	  universalShelfLevelInput.addEventListener('blur', () => handleLevelInput(1, universalShelfLevelInput));
+	  
+      
+      // 绑定模板按钮事件
+      document.querySelectorAll('.template-button').forEach(button => {
+        button.addEventListener('click', () => {
+          loadTemplate(button.dataset.template);
+        });
+      });
+	  
+	  // 绑定保存按钮事件
+      document.querySelectorAll('.save-button').forEach(button => {
+        button.addEventListener('click', () => {
+          saveCacheData(button.dataset.template);
+        });
+      });
+	  
+	  // 绑定删除按钮事件
+      document.querySelectorAll('.clear-button').forEach(button => {
+        button.addEventListener('click', () => {
+          clearCacheData(button.dataset.template);
+        });
+      });
+	  
+	  // 绑定导出按钮事件
+      document.querySelectorAll('.export-button').forEach(button => {
+        button.addEventListener('click', () => {
+          showModal(button.dataset.template);
+        });
+      });
+	  
+	  
+	  // 绑定扩口按钮事件
+      document.querySelectorAll('.add-button').forEach(button => {
+        button.addEventListener('click', () => {
+          addKouBei(button.dataset.template);
+        });
+      });
+      
+      // 绑定工具按钮事件
+      document.querySelectorAll('[data-tool]').forEach(button => {
+        button.addEventListener('click', () => {
+          selectTool(button.dataset.tool);
+        });
+      });
+      
+      // 绑定颜色选择事件
+      document.querySelectorAll('#shelf1x1-colors .color-option').forEach(option => {
+        option.addEventListener('click', (e) => {
+          e.stopPropagation();
+          shelfColors['shelf-1x1'] = option.dataset.color;
+          document.getElementById('shelf-1x1-button').className = `tool-button bg-${option.dataset.color}`;
+          selectTool('shelf-1x1');
+        });
+      });
+      
+      document.querySelectorAll('#shelf2x1-colors .color-option').forEach(option => {
+        option.addEventListener('click', (e) => {
+          e.stopPropagation();
+          shelfColors['shelf-2x1'] = option.dataset.color;
+          document.getElementById('shelf-2x1-button').className = `tool-button bg-${option.dataset.color}`;
+          selectTool('shelf-2x1');
+        });
+      });
+	  
+	  document.querySelectorAll('#shelf2x2-colors .color-option').forEach(option => {
+        option.addEventListener('click', (e) => {
+          e.stopPropagation();
+          //shelfColors['shelf-2x2'] = option.dataset.color;
+          //document.getElementById('shelf-2x2-button').className = `tool-button bg-${option.dataset.color}`;
+          selectTool('shelf-2x2');
+        });
+      });
+      
+      // 获取Canvas元素
+      canvas = document.getElementById('editor-canvas');
+      ctx = canvas.getContext('2d');
+      
+      // 绑定Canvas事件 - 调整鼠标坐标计算方式以适应缩放
+      canvas.addEventListener('click', handleCanvasClick);
+      canvas.addEventListener('contextmenu', handleCanvasRightClick);
+      canvas.addEventListener('mousemove', handleCanvasMouseMove);
+      
+      // 监听窗口大小变化，重新计算缩放
+      window.addEventListener('resize', () => {
+        if (grid.length > 0) { // 只有在已创建房间时才重新计算
+          calculateScale();
+          drawGrid();
+        }
+      });
+      
+      // 加载Font Awesome字体用于Canvas绘制
+      loadFontAwesome();
+    }
+	
+	// 预设槽位变更时更新布局名称和文件名称
+    slotRadios.forEach(radio => {
+      radio.addEventListener('change', () => {
+        if (radio.checked) {
+          const slotValue = parseInt(radio.value);
+          const slotNumber = slotValue + 1;
+          
+          // 更新布局名称
+          layoutNameInput.value = `布局预设${slotNumber}`;
+          
+          // 更新文件名称
+          fileNameInput.value = `layout_${slotValue}.json`;
+        }
+      });
+    });
+	
+	// 导出JSON文件
+    function exportJsonFile(data, fileName) {
+      // 格式化JSON
+      const prettyPrint = true;
+      const jsonString = prettyPrint ? JSON.stringify(data, null, 2) : JSON.stringify(data);
+      
+      // 创建Blob对象
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      
+      // 创建下载链接
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      
+      // 触发下载
+      document.body.appendChild(a);
+      a.click();
+      
+      // 清理
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 0);
+      
+      // 显示成功提示
+      showAutoAlert('导出成功！文件已开始下载', 'success');
+    }
+	
+	// 表单数据处理和导出
+    function handleExport() {
+      // 获取表单数据
+      const formData = new FormData(exportForm);
+      const exportConfig = Object.fromEntries(formData.entries());
+	  
+	  //console.log('exportConfig:',exportConfig);
+	  //return;
+      
+      // 验证表单
+      const reputation = parseInt(exportConfig.reputation);
+      if (isNaN(reputation) || reputation < 1 || reputation > 13) {
+        showAutoAlert('店面口碑必须是 1-13 之间的数字', 'error');
+        return;
+      }
+      
+      if (!exportConfig.fileName) {
+        showAutoAlert('文件名称不能为空', 'error');
+        return;
+      }
+      
+      // 确保文件名有.json后缀
+      let fileName = exportConfig.fileName;
+      if (!fileName.endsWith('.json')) {
+        fileName += '.json';
+      }
+      
+      // 构建导出数据
+      const exportData = {
+		"nVersion": 1,
+		"szModID": "",
+		"nSlotIndex": parseInt(exportConfig.slot),
+		"szName": exportConfig.layoutName || `布局预设${parseInt(exportConfig.slot) + 1}`,
+		"szDesc": exportConfig.layoutDesc || '无描述',
+		"szIconPath": "icon/室内装饰/20030",
+		"nSceneID": parseInt(storeSelect.value),
+		"nScenePraise": reputation,
+		"nCreateTime": Date.now(),
+		"doodadLayoutDataList": []
+	  }
+	  
+	  const otherInfo = {
+		"commonShelfLevel": Number(exportConfig.commonShelfLevel) || 60,
+		"universalShelfLevel": Number(exportConfig.universalShelfLevel) || 70,
+		"multiFacetGem": Number(exportConfig.multiFacetGem) || 0,
+		"capacityGem": Number(exportConfig.capacityGem) || 0,
+		"salesGem": Number(exportConfig.salesGem) || 0,
+	  }
+	  
+	  addDoodadLayoutDataList(exportData, otherInfo);
+      
+      // 导出文件
+      exportJsonFile(exportData, fileName);
+      
+      // 关闭弹窗
+      hideModal();
+    }
+	
+	function addDoodadLayoutDataList(exportData, otherInfo){
+	
+	  const mRows = grid.length;
+      const nCols = grid[0].length;
+      
+      for(let x = 0; x < mRows; x++){
+	    for(let y = 0; y < nCols; y++){
+		  let cell = grid[x][y];
+		  const templateData = {
+            "nTemplateID": 0,
+            "nLevel": otherInfo.commonShelfLevel,
+            "eDirection": 0,
+            "cellPositions": [],
+            "worldPos": {
+                "x": 0,
+                "y": 0
+            },
+            "nGemID_MultiFacet": 0,
+            "nGemID_Capacity": 0,
+            "nGemID_SellCount": 0
+          }
+		  
+		  let cellType = null;
+		  if(cell.type === ElementTypes.SHELF_1x1){//1*1货架
+		    cellType = '1x1';
+			if(cell.color === 'shelf1x1_2'){
+			  templateData.nTemplateID = 2;
+			}else if(cell.color === 'shelf1x1_3'){
+			  templateData.nTemplateID = 3;
+			}else if(cell.color === 'shelf1x1_4'){//路障
+			  templateData.nTemplateID = 20030;
+			  templateData.nLevel = 1;
+			  templateData.eDirection = 3;
+			}else if(cell.color === 'shelf1x1_5'){//万能
+			  templateData.nTemplateID = 1001;
+			  templateData.nLevel = otherInfo.universalShelfLevel;
+			}else {//shelf1x1_1
+			  templateData.nTemplateID = 1;
+			}
+			
+			if(templateData.eDirection === 0){
+			  templateData.eDirection = calcDirection(y, x, 0, '1x1');
+			}
+		  }else if(cell.type === ElementTypes.SHELF_2x1 && cell.isShelfStart){
+		    cellType = '1x2';
+		    if(cell.color === 'shelf2x1_2'){
+			  templateData.nTemplateID = 5;
+			}else if(cell.color === 'shelf2x1_3'){
+			  templateData.nTemplateID = 6;
+			}else if(cell.color === 'shelf2x1_4'){
+			  templateData.nTemplateID = 7;
+			}else if(cell.color === 'shelf2x1_5'){
+			  templateData.nTemplateID = 8;
+			}else{
+			  templateData.nTemplateID = 4;
+			}
+			//console.log('cell:',cell);
+			templateData.eDirection = calcDirection(y, x, cell.rotation, '1x2');
+		  }else if(cell.type === ElementTypes.SHELF_2x2 && cell.isShelfStart){
+		    cellType = '2x2';
+			templateData.nTemplateID = 9;
+			templateData.eDirection = calcDirection(y, x, 0, '2x2');
+		  }
+		  
+		  if(cellType){
+		  
+		    //宝石
+		    if(templateData.nLevel < 10){
+			  templateData.nGemID_MultiFacet = 0;
+			  templateData.nGemID_Capacity = 0;
+			  templateData.nGemID_SellCount = 0;
+			}else{
+			  templateData.nGemID_MultiFacet = otherInfo.multiFacetGem == 0 ? 0 : (9100 + otherInfo.multiFacetGem);
+			  templateData.nGemID_Capacity = otherInfo.capacityGem == 0 ? 0 : (9200 + otherInfo.capacityGem);
+			  templateData.nGemID_SellCount = otherInfo.salesGem == 0 ? 0 : (9300 + otherInfo.salesGem);
+			}
+		  
+		    //货架坐标
+		    let cellPositions = calcCellPosistions(x, y, cell.rotation, cellType);
+		    templateData.cellPositions = cellPositions;
+			templateData.worldPos.x = (cellPositions[0].x - cellPositions[0].y) / 2.0;
+			templateData.worldPos.y = (cellPositions[0].x + cellPositions[0].y + 1) / 4.0;
+			
+			exportData.doodadLayoutDataList.push(templateData);
+		  }
+		}
+	  }	  
+	
+	}
+	
+	function calcCellPosistions(x, y, rotation, type){
+	    const positionGroups = [];
+		if(type === '1x1'){
+			positionGroups.push({
+			  "x" : 59 - x,
+			  "y" : 59 - y
+			});
+			return positionGroups;
+		}
+		
+		if(type === '1x2' && rotation === 0){
+		  positionGroups.push({
+			  "x" : 59 - x,
+			  "y" : 59 - (y + 1)
+			});
+		  positionGroups.push({
+			  "x" : 59 - x,
+			  "y" : 59 - y
+			});
+		  
+		  return positionGroups;
+		}
+		
+		if(type === '1x2' && rotation === 1){
+		  positionGroups.push({
+			  "x" : 59 - (x + 1),
+			  "y" : 59 - y
+			});
+		  positionGroups.push({
+			  "x" : 59 - x,
+			  "y" : 59 - y
+			});
+		  
+		  return positionGroups;
+		}
+		
+		if(type === '2x2'){
+		  positionGroups.push({
+			  "x" : 59 - (x + 1),
+			  "y" : 59 - (y + 1)
+			});
+		  positionGroups.push({
+			  "x" : 59 - (x + 1),
+			  "y" : 59 - y
+			});
+		  positionGroups.push({
+			  "x" : 59 - x,
+			  "y" : 59 - y
+			});
+		  positionGroups.push({
+			  "x" : 59 - x,
+			  "y" : 59 - (y + 1)
+			});
+		  return positionGroups;
+		}
+		
+		return null;
+	}
+	
+	function calcDirection(x, y, rotation, type){
+	  if(type === '1x1'){
+	    if(calcContains(x - 1, y)){
+		  return 0;
+		}
+		if(calcContains(x, y - 1)){
+		  return 1;
+		}
+		if(calcContains(x + 1, y)){
+		  return 2;
+		}
+		if(calcContains(x, y + 1)){
+		  return 3;
+		}
+		return 0;
+	  }
+	  if(type === '1x2' && rotation === 0){//水平
+		let b1 = calcContains(x, y - 1);
+		let b2 = calcContains(x + 1, y - 1);
+		let b3 = calcContains(x, y + 1);
+		let b4 = calcContains(x + 1, y + 1);
+		
+		return (Number(b1) + Number(b2)) >= (Number(b3) + Number(b4)) ? 1 : 3;
+
+	  }
+	  if(type === '1x2' && rotation === 1){//垂直
+		let b1 = calcContains(x - 1, y);
+		let b2 = calcContains(x - 1, y + 1);
+		let b3 = calcContains(x + 1, y);
+		let b4 = calcContains(x + 1, y + 1);
+		
+		return (Number(b1) + Number(b2)) >= (Number(b3) + Number(b4)) ? 0 : 2;
+	  }
+	  if(type === '2x2'){
+	    const groups = [
+			Number(calcContains(x - 1, y)) + Number(calcContains(x - 1, y + 1)),
+			Number(calcContains(x, y - 1)) + Number(calcContains(x + 1, y - 1)),
+			Number(calcContains(x + 2, y)) + Number(calcContains(x + 2, y + 1)),
+			Number(calcContains(x, y + 2)) + Number(calcContains(x + 1, y + 2))
+			]; 
+			
+		let maxNum = groups[0];
+		let maxNumIndex = 0;
+	    for(let i = 1; i < groups.length; i++){
+		  if(groups[i] > maxNum){
+		    maxNum = groups[i];
+			maxNumIndex = i;
+		  }
+		}
+		return maxNumIndex;
+	    
+	  }
+	  return 0;
+	}
+	
+	function handleLevelInput(type, inputCom){
+	  //console.log('type,inputCom',type,',',inputCom.value);
+	  let minVal = 1;
+	  let maxVal = 60;
+	  let defaultVal = 60;
+	  let inputVal = inputCom.value.trim();
+	  if(type === 1){
+	    maxVal = 70;
+		defaultVal = 70;
+	  }
+	  
+	  if (!inputVal) {
+	    inputCom.value = defaultVal;
+		return;
+	  }
+	  
+	  let numVal = Number(inputVal);
+	  if(isNaN(numVal)){
+	    inputCom.value = defaultVal;
+		return;
+	  }
+	  
+	  let integerVal = Math.floor(numVal);
+	  if(integerVal < minVal || integerVal > maxVal){
+	    inputCom.value = defaultVal;
+	  }else{
+	    inputCom.value = integerVal;
+	  }
+	}
+	
+	
+	function handleReputationInput() {
+	  let inputValue = reputationInput.value.trim();
+	  if (!inputValue) {
+        reputationInput.value = defaultRaputation;
+        return;
+      }
+	  let numValue = Number(inputValue);
+	  if (isNaN(numValue)) {
+		reputationInput.value = defaultRaputation;
+		return;
+	  }
+	  
+	  let integerValue = Math.floor(numValue);
+	  if (integerValue < 1 || integerValue > 13) {
+        reputationInput.value = defaultRaputation;
+      } else {
+        reputationInput.value = integerValue;
+      }
+	}
+	
+	// 弹窗显示/隐藏
+    function showModal(data) {
+      exportModal.classList.remove('hidden');
+      setTimeout(() => {
+        exportModal.classList.add('opacity-100');
+        exportModal.querySelector('div').classList.remove('scale-95');
+        exportModal.querySelector('div').classList.add('scale-100');
+      }, 10);
+      document.body.style.overflow = 'hidden';
+	  
+	  let koubeiInfo = extractNumbers(data);
+	  storeSelect.value = '' + koubeiInfo[0];
+	  reputationInput.value = koubeiInfo[1];
+	  defaultRaputation = koubeiInfo[1];
+    }
+	
+	function hideModal() {
+      exportModal.classList.remove('opacity-100');
+      exportModal.querySelector('div').classList.remove('scale-100');
+      exportModal.querySelector('div').classList.add('scale-95');
+      setTimeout(() => {
+        exportModal.classList.add('hidden');
+        document.body.style.overflow = '';
+      }, 300);
+    }
+	
+	// 动态创建提示框（支持自定义消息和类型）
+    function showAutoAlert(message = "提示信息", type = "success") {
+      // 1. 动态创建提示框元素
+      const alertBox = document.createElement('div');
+      
+      // 2. 应用 Tailwind 样式（结合自定义工具类）
+      alertBox.className = `auto-alert-base auto-alert-${type} top-4`;
+      alertBox.textContent = message;
+      
+      // 3. 添加到页面
+      document.body.appendChild(alertBox);
+      
+      // 4. 触发显示动画（延迟10ms确保样式生效）
+      setTimeout(() => {
+        alertBox.classList.add('auto-alert-show');
+      }, 10);
+      
+      // 5. 3秒后自动隐藏并删除
+      setTimeout(() => {
+        alertBox.classList.remove('auto-alert-show');
+        // 等待过渡动画结束后删除元素
+        setTimeout(() => {
+          document.body.removeChild(alertBox);
+        }, 300);
+      }, 3000);
+    }
+	
+	//保存房间数据到缓存
+	function saveCacheData(cacheKey){
+	  //console.log('cacheKey: ', cacheKey);
+	  //console.log(JSON.stringify(grid));
+	  localStorage.setItem(cacheKey, JSON.stringify(grid));
+	  showAutoAlert('保存成功', 'success');
+	
+	}
+	
+	//删除对应缓存
+	function clearCacheData(cacheKey){
+	  localStorage.removeItem(cacheKey);
+	  showAutoAlert('已删除', 'success');
+	}
+	
+	function changeCellSize(size){
+	  slider.value = size;
+	  slider.title = size;
+	  console.log('当前单元格大小：', size);
+	  
+	  cellSize = size;
+	  arrowSize = 16 * (cellSize / 50);
+	  
+	  // 设置Canvas实际尺寸（内部绘图尺寸，不受缩放影响）
+      canvas.width = columns * cellSize;
+      canvas.height = rows * cellSize;
+      
+      // 计算缩放比例
+      calculateScale();
+	  
+	  drawGrid();
+	  
+	  
+	  
+	}
+	
+	function extractNumbers(str) {
+		
+		// 使用正则表达式匹配格式
+		const match = str.match(/^data_(\d+)_(\d+)$/);
+		
+		// 提取并转换数字
+		const num1 = parseInt(match[1], 10);
+		const num2 = parseInt(match[2], 10);
+		
+		return [num1, num2];
+	}
+	
+	function addKouBei(templateInfo){
+		let koubeiInfo = extractNumbers(templateInfo);
+		//console.log('koubeiInfo:',koubeiInfo);
+		if(koubeiInfo[1] >= 13){
+			return;
+		}
+		
+		koubeiInfo[1]++;
+		
+		document.getElementById('roomName').textContent = '超市 ' + koubeiInfo[0] + ' 店 ' + koubeiInfo[1] + ' 口';
+		let saveButton = document.getElementById('save-button');
+	    let clearButton = document.getElementById('clear-button');
+	    let addButton = document.getElementById('add-button');
+		
+		let cacheKey = 'data_' + koubeiInfo[0] + '_' + koubeiInfo[1];
+		saveButton.dataset.template = cacheKey;
+	    clearButton.dataset.template = cacheKey;
+	    addButton.dataset.template = cacheKey;
+		exportButton.dataset.template = cacheKey;
+		
+		//获取模板数据2
+	    const subData = initialSubRoomData(roomData[koubeiInfo[0] - 1], koubeiInfo[1]);
+		
+		rows = subData.length;
+	    columns = subData[0].length;
+		
+		if(rows > 15){
+	      cellSize = -1.5 * rows + 70;
+		  arrowSize = 16 * (cellSize / 50);
+	    }
+		
+		slider.value = Math.ceil(cellSize);
+	    slider.title = Math.ceil(cellSize);
+		
+		// 设置Canvas实际尺寸（内部绘图尺寸，不受缩放影响）
+        canvas.width = columns * cellSize;
+        canvas.height = rows * cellSize;
+		
+		// 计算缩放比例
+        calculateScale();
+		
+		let m = grid.length;
+		let n = grid[0].length;
+		
+		console.log('rows,cols,m,n:',rows,',',columns,',',m,',',n);
+		//console.log("gridInfo0:",grid)
+		
+		for (let y = 0; y < rows; y++) {
+		  let row = [];
+		  if(y < m){
+		    row = grid[y];
+		  }
+		  for (let x = 0; x < columns; x++) {
+		    const value = subData[y][x];
+		    const highNibble = (value >> 4) & 0x0F;
+            const lowNibble = value & 0x0F;
+			
+		    let cell = {
+			  type: ElementTypes.EMPTY,
+			  rotation: 0,
+			  shelfGroupId: null,
+			  isShelfStart: false,
+			  color: null // 颜色属性
+			};
+			
+		    if(y < m && x < n){
+			  cell = grid[y][x];
+			  if(cell.type === ElementTypes.OBSTACLE && lowNibble === 0 && highNibble <= koubeiInfo[1]){
+			    cell.type = ElementTypes.EMPTY;
+			  }
+			  continue;
+			}
+			
+	        if(lowNibble == 1 || highNibble > koubeiInfo[1]){
+		      cell.type = ElementTypes.OBSTACLE;
+		    }
+		    row.push(cell);
+		  }
+		  if(y >= m){
+		    grid.push(row);
+		  }
+		  
+		}
+		
+		//console.log("gridInfo1:",grid)
+		
+		// 绘制网格
+        drawGrid();
+		
+		
+		calculatePath();
+      
+      
+        // 滚动到Canvas区域
+        canvas.scrollIntoView({ behavior: 'smooth' });
+		
+		
+		
+	}
+    
+    // 加载模板
+    function loadTemplate(templateId) {
+	
+	  mockRoom = true;
+	
+	  let koubeiId = 'koubei' + (Number(templateId) + 1);
+	  let koubei = document.getElementById(koubeiId).value;
+	  //口碑范围限定1-13
+	  if(koubei < 1){
+	    koubei = 1;
+	  }else if(koubei > 13){
+	    koubei = 13;
+	  }
+	
+	  console.log('加载店面：', Number(templateId) + 1, ', 口碑：', koubei);
+	  
+	  document.getElementById('roomName').textContent = '超市 ' + (Number(templateId) + 1) + ' 店 ' + koubei + ' 口';
+	  
+	  let saveButton = document.getElementById('save-button');
+	  let clearButton = document.getElementById('clear-button');
+	  let addButton = document.getElementById('add-button');
+	  
+	  let cacheKey = 'data_' + (Number(templateId) + 1) + '_' + koubei;
+	  let cacheKey0 = 'data_' + (Number(templateId) + 1) + '_' + (koubei - 1);
+	  saveButton.dataset.template = cacheKey;
+	  clearButton.dataset.template = cacheKey;
+	  addButton.dataset.template = cacheKey;
+	  exportButton.dataset.template = cacheKey;
+	  
+      // 获取模板数据
+      //const template = templates[templateId][koubei - 1];
+	  //if (!template) {
+      //  alert('模板不存在');
+      //  return;
+      //}
+	  
+	  //获取模板数据2
+	  const subData = initialSubRoomData(roomData[Number(templateId)], koubei);
+	  if(!subData){
+	    alert('模板不存在');
+        return;
+	  }
+	  
+	  rows = subData.length;
+	  columns = subData[0].length;
+      
+	  console.log('rows,cols:',rows,',',columns);
+      // 更新行数和列数输入框
+      document.getElementById('rows').value = rows;
+      document.getElementById('columns').value = columns;
+	  
+	  if(rows > 15){
+	    cellSize = -1.5 * rows + 70;
+		arrowSize = 16 * (cellSize / 50);
+	  }
+	  
+	  slider.value = Math.ceil(cellSize);
+	  slider.title = Math.ceil(cellSize);
+      
+      // 隐藏设置面板，显示编辑器
+      document.getElementById('room-setup').classList.add('hidden');
+      document.getElementById('editor').classList.remove('hidden');
+	  //baseElements
+	  document.getElementById('base-elements').classList.add('hidden');
+	  //template-loader
+	  document.getElementById('template-loader').classList.add('hidden');
+      
+      // 设置Canvas实际尺寸（内部绘图尺寸，不受缩放影响）
+      canvas.width = columns * cellSize;
+      canvas.height = rows * cellSize;
+      
+      // 计算缩放比例
+      calculateScale();
+	  
+	  //读取网格缓存
+	  let cacheGridData = localStorage.getItem(cacheKey);
+	  if(cacheGridData){
+	    //entrance = { x: template.entrance.x, y: template.entrance.y };
+		//exit = { x: template.exit.x, y: template.exit.y };
+		
+		grid = JSON.parse(cacheGridData);
+		
+		// 绘制网格
+        drawGrid();
+		//计算路径
+		calculatePath();
+		
+		canvas.scrollIntoView({ behavior: 'smooth' });
+		
+		return;
+
+	  }
+      
+      // 初始化网格数据
+      initializeGrid();
+	  for(let i = 0; i < rows; i++){
+	    for(let j = 0; j < columns; j++){
+		  const value = subData[i][j];
+		  const highNibble = (value >> 4) & 0x0F;
+          const lowNibble = value & 0x0F;
+		  if(lowNibble == 1 || highNibble > koubei){
+		    grid[i][j].type = ElementTypes.OBSTACLE;
+		  }else if(lowNibble == 2){
+		    grid[i][j].type = ElementTypes.ENTRANCE;
+			entrance = { x: j, y: i };
+		  }else if(lowNibble == 3){
+		    grid[i][j].type = ElementTypes.EXIT;
+			exit = { x: j, y: i };
+		  }
+		}
+	  }
+      
+	  /*
+      // 放置入口
+      if (template.entrance) {
+        grid[template.entrance.y][template.entrance.x].type = ElementTypes.ENTRANCE;
+        entrance = { x: template.entrance.x, y: template.entrance.y };
+      }
+      
+      // 放置出口
+      if (template.exit) {
+        grid[template.exit.y][template.exit.x].type = ElementTypes.EXIT;
+        exit = { x: template.exit.x, y: template.exit.y };
+      }
+      
+      // 放置障碍物
+      if (template.obstacles && template.obstacles.length > 0) {
+        template.obstacles.forEach(obstacle => {
+		  let x0 = Math.min(obstacle[0].x, obstacle[1].x);
+		  let x1 = Math.max(obstacle[0].x, obstacle[1].x);
+		  let y0 = Math.min(obstacle[0].y, obstacle[1].y);
+		  let y1 = Math.max(obstacle[0].y, obstacle[1].y);
+		  //console.log('坐标：',x0,',',y0,'|',x1,',',y1);
+		  for(let x = x0; x <= x1; x++){
+		    for(let y = y0; y <= y1; y++){
+			  if(isValidPosition(x, y)){
+			    //console.log(x,',',y);
+			    grid[y][x].type = ElementTypes.OBSTACLE;
+			  }
+			}
+		  }
+		  
+        });
+      }
+      
+      // 放置货架
+      if (template.shelves && template.shelves.length > 0) {
+        template.shelves.forEach(shelf => {
+          if (!isValidPosition(shelf.x, shelf.y)) {
+            return;
+          }
+          
+          switch (shelf.type) {
+            case 'shelf-1x1':
+              placeTemplateShelf1x1(shelf.x, shelf.y, shelf.color);
+              break;
+            case 'shelf-2x1':
+              placeTemplateShelf2x1(shelf.x, shelf.y, shelf.rotation || 0, shelf.color);
+              break;
+            case 'shelf-2x2':
+              placeTemplateShelf2x2(shelf.x, shelf.y);
+              break;
+          }
+        });
+      }*/
+	  
+	  /**/
+	  let cacheGridData0 = localStorage.getItem(cacheKey0);
+	  if(!cacheGridData && cacheGridData0){
+		
+		let grid0 = JSON.parse(cacheGridData0);
+		grid0.forEach((row, x) => {
+		  // row 是当前行的数组（如 [1,2,3]），x 是行索引
+		  row.forEach((value, y) => {
+			// value 是当前单元格值，y 是列索引
+			if(!(value.type === ElementTypes.ENTRANCE || value.type === ElementTypes.EXIT || value.type === ElementTypes.OBSTACLE)){
+			  grid[x][y] = {...value};
+			}
+		  });
+		});
+		
+        
+
+	  }
+      
+      // 绘制网格
+      drawGrid();
+      
+      // 如果已有入口和出口，计算路径
+      if (entrance && exit) {
+        calculatePath();
+      }
+      
+      // 滚动到Canvas区域
+      canvas.scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    // 检查位置是否有效
+    function isValidPosition(x, y) {
+      return x >= 0 && x < columns && y >= 0 && y < rows;
+    }
+    
+    // 从模板放置1x1货架
+    function placeTemplateShelf1x1(x, y, color) {
+      // 检查位置是否可用
+      if (!isPositionAvailable(x, y)) return;
+      
+      // 生成货架组ID
+      const groupId = `shelf-${Date.now()}-${x}-${y}`;
+      
+      // 放置货架，保存颜色信息
+      grid[y][x].type = ElementTypes.SHELF_1x1;
+      grid[y][x].rotation = 0;
+      grid[y][x].shelfGroupId = groupId;
+      grid[y][x].isShelfStart = true;
+      grid[y][x].color = color || shelfColors['shelf-1x1'];
+    }
+    
+    // 从模板放置2x1货架
+    function placeTemplateShelf2x1(x, y, rotation, color) {
+      // 检查空间是否足够
+      if (rotation === 0) { // 水平放置 (2x1)
+        if (x + 1 >= columns) {
+          return;
+        }
+        
+        // 检查位置是否可用
+        if (!isPositionAvailable(x, y) || !isPositionAvailable(x + 1, y)) {
+          return;
+        }
+      } else { // 垂直放置 (1x2)
+        if (y + 1 >= rows) {
+          return;
+        }
+        
+        // 检查位置是否可用
+        if (!isPositionAvailable(x, y) || !isPositionAvailable(x, y + 1)) {
+          return;
+        }
+      }
+      
+      // 生成货架组ID
+      const groupId = `shelf-${Date.now()}-${x}-${y}`;
+      
+      // 放置货架
+      if (rotation === 0) { // 水平
+        grid[y][x].type = ElementTypes.SHELF_2x1;
+        grid[y][x].rotation = rotation;
+        grid[y][x].shelfGroupId = groupId;
+        grid[y][x].isShelfStart = true;
+        grid[y][x].color = color || shelfColors['shelf-2x1'];
+        
+        grid[y][x + 1].type = ElementTypes.SHELF_2x1;
+        grid[y][x + 1].rotation = rotation;
+        grid[y][x + 1].shelfGroupId = groupId;
+        grid[y][x + 1].isShelfStart = false;
+        grid[y][x + 1].color = color || shelfColors['shelf-2x1'];
+      } else { // 垂直
+        grid[y][x].type = ElementTypes.SHELF_2x1;
+        grid[y][x].rotation = rotation;
+        grid[y][x].shelfGroupId = groupId;
+        grid[y][x].isShelfStart = true;
+        grid[y][x].color = color || shelfColors['shelf-2x1'];
+        
+        grid[y + 1][x].type = ElementTypes.SHELF_2x1;
+        grid[y + 1][x].rotation = rotation;
+        grid[y + 1][x].shelfGroupId = groupId;
+        grid[y + 1][x].isShelfStart = false;
+        grid[y + 1][x].color = color || shelfColors['shelf-2x1'];
+      }
+    }
+    
+    // 从模板放置2x2货架
+    function placeTemplateShelf2x2(x, y) {
+      // 检查空间是否足够
+      if (x + 1 >= columns || y + 1 >= rows) {
+        return;
+      }
+      
+      // 检查所有位置是否可用
+      for (let dy = 0; dy < 2; dy++) {
+        for (let dx = 0; dx < 2; dx++) {
+          if (!isPositionAvailable(x + dx, y + dy)) {
+            return;
+          }
+        }
+      }
+      
+      // 生成货架组ID
+      const groupId = `shelf-${Date.now()}-${x}-${y}`;
+      
+      // 放置货架
+      for (let dy = 0; dy < 2; dy++) {
+        for (let dx = 0; dx < 2; dx++) {
+          grid[y + dy][x + dx].type = ElementTypes.SHELF_2x2;
+          grid[y + dy][x + dx].rotation = 0;
+          grid[y + dy][x + dx].shelfGroupId = groupId;
+          grid[y + dy][x + dx].isShelfStart = (dx === 0 && dy === 0);
+        }
+      }
+    }
+    
+    // 计算缩放比例
+    function calculateScale() {
+      // 获取容器可用宽度和高度（减去padding等）
+      const container = document.querySelector('.canvas-container');
+      const containerRect = container.getBoundingClientRect();
+	  
+	  
+      
+      // 计算所需宽度和高度
+      const requiredWidth = columns * cellSize;
+      const requiredHeight = rows * cellSize;
+      
+      // 计算宽度和高度方向的缩放比例
+      const scaleX = containerRect.width / requiredWidth;
+      const scaleY = containerRect.height / requiredHeight;
+      
+      // 取最小的缩放比例，确保内容完全显示
+      scale = Math.min(scaleX, scaleY, 1); // 最大不超过1（不放大）
+	  scale = 1;
+      
+      // 设置Canvas的CSS大小（显示大小）
+      canvas.style.width = `${requiredWidth * scale}px`;
+      canvas.style.height = `${requiredHeight * scale}px`;
+    }
+    
+    // 绘制1x1货架 - 使用选中的颜色
+    function drawShelf1x1(x, y) {
+      // 应用缩放
+      const xPos = x * cellSize * scale;
+      const yPos = y * cellSize * scale;
+      const scaledSize = cellSize * scale;
+      
+      // 获取该货架的颜色
+      const color = grid[y][x].color || shelfColors['shelf-1x1'];
+      
+      // 绘制货架背景
+      ctx.fillStyle = ElementColors[color];
+      ctx.fillRect(xPos, yPos, scaledSize, scaledSize);
+      
+      // 绘制货架边框
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.lineWidth = 2 * scale;
+      ctx.strokeRect(xPos, yPos, scaledSize, scaledSize);
+	  
+	  //定义图标
+	  let icon = ElementIcons[ElementTypes.SHELF_1x1];
+	  let isDrawNum = true;
+	  if(color === 'shelf1x1_1'){
+	    icon = ElementIcons['fruit'];
+	  }else if(color === 'shelf1x1_2'){
+	    icon = ElementIcons['drink'];
+	  }else if(color === 'shelf1x1_3'){
+	    icon = ElementIcons['veggie'];
+	  }else if(color === 'shelf1x1_4'){
+	    icon = ElementIcons['barricade'];
+		isDrawNum = false;
+	  }else if(color === 'shelf1x1_5'){
+	    icon = ElementIcons['all'];
+	  }
+      
+      // 绘制图标
+      drawIcon(xPos + scaledSize/2, yPos + scaledSize/2, icon, 20 * scale * (cellSize / 50));
+	  
+	  //console.log('pos:',x,',',y);
+	  if(isDrawNum){
+	    drawNumber(x, y, 0, 50 * (cellSize / 50));
+	  }
+	  
+    }
+    
+    // 绘制水平2x1货架 - 使用选中的颜色
+    function drawShelf2x1Horizontal(x, y) {
+      // 应用缩放
+      const xPos = x * cellSize * scale;
+      const yPos = y * cellSize * scale;
+      const scaledWidth = cellSize * 2 * scale;
+      const scaledHeight = cellSize * scale;
+      
+      // 获取该货架的颜色
+      const color = grid[y][x].color || shelfColors['shelf-2x1'];
+      
+      // 绘制货架背景
+      ctx.fillStyle = ElementColors[color];
+      ctx.fillRect(xPos, yPos, scaledWidth, scaledHeight);
+      
+      // 绘制货架边框
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.lineWidth = 2 * scale;
+      ctx.strokeRect(xPos, yPos, scaledWidth, scaledHeight);
+      
+      // 绘制内部分隔线
+	  /*
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.lineWidth = 1 * scale;
+      ctx.beginPath();
+      ctx.moveTo(xPos + cellSize * scale, yPos);
+      ctx.lineTo(xPos + cellSize * scale, yPos + scaledHeight);
+      ctx.stroke();*/
+	  
+	  //定义图标
+	  let icon = ElementIcons[ElementTypes.SHELF_2x1];
+	  if(color === 'shelf2x1_1'){
+	    icon = ElementIcons['soap'];
+	  }else if(color === 'shelf2x1_2'){
+	    icon = ElementIcons['sport'];
+	  }else if(color === 'shelf2x1_3'){
+	    icon = ElementIcons['electronic'];
+	  }else if(color === 'shelf2x1_4'){
+	    icon = ElementIcons['luxury'];
+	  }else if(color === 'shelf2x1_5'){
+	    icon = ElementIcons['clothing'];
+	  }
+      
+      // 绘制图标
+      drawIcon(xPos + scaledWidth/2, yPos + scaledHeight/2, icon, 20 * scale);
+	  
+	  drawNumber(x, y, 1, 50);
+    }
+    
+    // 绘制垂直2x1货架（1x2）- 使用选中的颜色
+    function drawShelf2x1Vertical(x, y) {
+      // 应用缩放
+      const xPos = x * cellSize * scale;
+      const yPos = y * cellSize * scale;
+      const scaledWidth = cellSize * scale;
+      const scaledHeight = cellSize * 2 * scale;
+      
+      // 获取该货架的颜色
+      const color = grid[y][x].color || shelfColors['shelf-2x1'];
+      
+      // 绘制货架背景
+      ctx.fillStyle = ElementColors[color];
+      ctx.fillRect(xPos, yPos, scaledWidth, scaledHeight);
+      
+      // 绘制货架边框
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.lineWidth = 2 * scale;
+      ctx.strokeRect(xPos, yPos, scaledWidth, scaledHeight);
+      
+      // 绘制内部分隔线
+	  /*
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.lineWidth = 1 * scale;
+      ctx.beginPath();
+      ctx.moveTo(xPos, yPos + cellSize * scale);
+      ctx.lineTo(xPos + scaledWidth, yPos + cellSize * scale);
+      ctx.stroke();*/
+	  
+	  //定义图标
+	  let icon = ElementIcons[ElementTypes.SHELF_2x1];
+	  if(color === 'shelf2x1_1'){
+	    icon = ElementIcons['soap'];
+	  }else if(color === 'shelf2x1_2'){
+	    icon = ElementIcons['sport'];
+	  }else if(color === 'shelf2x1_3'){
+	    icon = ElementIcons['electronic'];
+	  }else if(color === 'shelf2x1_4'){
+	    icon = ElementIcons['luxury'];
+	  }else if(color === 'shelf2x1_5'){
+	    icon = ElementIcons['clothing'];
+	  }
+      
+      // 绘制图标
+      drawIcon(xPos + scaledWidth/2, yPos + scaledHeight/2, icon, 20 * scale);
+	  
+	  drawNumber(x, y, 2, 50 * (cellSize / 50));
+    }
+    
+    // 放置1x1货架 - 保存颜色信息
+    function placeShelf1x1(x, y) {
+      // 检查位置是否可用
+      if (!isPositionAvailable(x, y)) return;
+      
+      // 生成货架组ID
+      const groupId = `shelf-${Date.now()}-${x}-${y}`;
+      
+      // 放置货架，保存当前选中的颜色
+      grid[y][x].type = ElementTypes.SHELF_1x1;
+      grid[y][x].rotation = 0;
+      grid[y][x].shelfGroupId = groupId;
+      grid[y][x].isShelfStart = true;
+      grid[y][x].color = shelfColors['shelf-1x1']; // 保存颜色
+      
+      // 重新绘制网格
+      drawGrid();
+      
+      // 如果已有入口和出口，重新计算路径
+      if (entrance && exit) {
+        calculatePath();
+      }
+    }
+    
+    // 放置2x1货架 - 保存颜色信息
+    function placeShelf2x1(x, y, rotation) {
+      // 检查空间是否足够
+      if (rotation === 0) { // 水平放置 (2x1)
+        if (x + 1 >= columns) {
+          //alert('空间不足，无法放置货架');
+          return;
+        }
+        
+        // 检查位置是否可用
+        if (!isPositionAvailable(x, y) || !isPositionAvailable(x + 1, y)) {
+          return;
+        }
+      } else { // 垂直放置 (1x2)
+        if (y + 1 >= rows) {
+          //alert('空间不足，无法放置货架');
+          return;
+        }
+        
+        // 检查位置是否可用
+        if (!isPositionAvailable(x, y) || !isPositionAvailable(x, y + 1)) {
+          return;
+        }
+      }
+      
+      // 生成货架组ID
+      const groupId = `shelf-${Date.now()}-${x}-${y}`;
+      // 当前选中的颜色
+      const color = shelfColors['shelf-2x1'];
+      
+      // 放置货架
+      if (rotation === 0) { // 水平
+        grid[y][x].type = ElementTypes.SHELF_2x1;
+        grid[y][x].rotation = rotation;
+        grid[y][x].shelfGroupId = groupId;
+        grid[y][x].isShelfStart = true;
+        grid[y][x].color = color; // 保存颜色
+        
+        grid[y][x + 1].type = ElementTypes.SHELF_2x1;
+        grid[y][x + 1].rotation = rotation;
+        grid[y][x + 1].shelfGroupId = groupId;
+        grid[y][x + 1].isShelfStart = false;
+        grid[y][x + 1].color = color; // 保存颜色
+      } else { // 垂直
+        grid[y][x].type = ElementTypes.SHELF_2x1;
+        grid[y][x].rotation = rotation;
+        grid[y][x].shelfGroupId = groupId;
+        grid[y][x].isShelfStart = true;
+        grid[y][x].color = color; // 保存颜色
+        
+        grid[y + 1][x].type = ElementTypes.SHELF_2x1;
+        grid[y + 1][x].rotation = rotation;
+        grid[y + 1][x].shelfGroupId = groupId;
+        grid[y + 1][x].isShelfStart = false;
+        grid[y + 1][x].color = color; // 保存颜色
+      }
+      
+      // 重新绘制网格
+      drawGrid();
+      
+      // 如果已有入口和出口，重新计算路径
+      if (entrance && exit) {
+        calculatePath();
+      }
+    }
+    
+    // 绘制鼠标悬停效果 - 更新为使用选中的颜色
+    function drawHoverEffect() {
+      if (hoveredCell.x === -1 || hoveredCell.y === -1) return;
+      
+      const x = hoveredCell.x;
+      const y = hoveredCell.y;
+      // 应用缩放
+      const xPos = x * cellSize * scale;
+      const yPos = y * cellSize * scale;
+      const scaledSize = cellSize * scale;
+      
+      // 绘制悬停高亮
+      ctx.fillStyle = 'rgba(79, 70, 229, 0.1)';
+      ctx.fillRect(xPos, yPos, scaledSize, scaledSize);
+      
+      // 如果有选中的工具，预览放置效果
+      if (selectedTool && !isDeleteMode) {
+        ctx.globalAlpha = 0.6;
+        
+        switch (selectedTool) {
+          case ElementTypes.ENTRANCE:
+            ctx.fillStyle = ElementColors[ElementTypes.ENTRANCE];
+            ctx.fillRect(xPos, yPos, scaledSize, scaledSize);
+            break;
+          case ElementTypes.EXIT:
+            ctx.fillStyle = ElementColors[ElementTypes.EXIT];
+            ctx.fillRect(xPos, yPos, scaledSize, scaledSize);
+            break;
+          case ElementTypes.OBSTACLE:
+            ctx.fillStyle = ElementColors[ElementTypes.OBSTACLE];
+            ctx.fillRect(xPos, yPos, scaledSize, scaledSize);
+            break;
+          case ElementTypes.SHELF_1x1:
+            // 使用选中的颜色预览
+            ctx.fillStyle = ElementColors[shelfColors['shelf-1x1']];
+            ctx.fillRect(xPos, yPos, scaledSize, scaledSize);
+            break;
+          case ElementTypes.SHELF_2x1:
+            // 使用选中的颜色预览
+            ctx.fillStyle = ElementColors[shelfColors['shelf-2x1']];
+            if (shelfRotation === 0) {
+              // 水平
+              if (x + 1 < columns) {
+                ctx.fillRect(xPos, yPos, scaledSize * 2, scaledSize);
+              }
+            } else {
+              // 垂直
+              if (y + 1 < rows) {
+                ctx.fillRect(xPos, yPos, scaledSize, scaledSize * 2);
+              }
+            }
+            break;
+          case ElementTypes.SHELF_2x2:
+            ctx.fillStyle = ElementColors[ElementTypes.SHELF_2x2];
+            if (x + 1 < columns && y + 1 < rows) {
+              ctx.fillRect(xPos, yPos, scaledSize * 2, scaledSize * 2);
+            }
+            break;
+        }
+        
+        ctx.globalAlpha = 1;
+      }
+    }
+    
+    // 元素图标映射 (使用Font Awesome图标代码)//f390 f553
+    const ElementIcons = {
+      [ElementTypes.ENTRANCE]: '\uf063', // 下箭头
+      [ElementTypes.EXIT]: '\uf060',    // 左箭头
+      [ElementTypes.OBSTACLE]: '\uf05e', // 禁止符号
+      [ElementTypes.SHELF_1x1]: '\uf0ce', // 箱子
+      [ElementTypes.SHELF_2x1]: '\uf0ce', // 箱子
+      [ElementTypes.SHELF_2x2]: '\uf0ce',  // 箱子
+      pathArrowUp: '\uf062',    // 上箭头
+      pathArrowDown: '\uf063',  // 下箭头
+      pathArrowLeft: '\uf060',  // 左箭头
+      pathArrowRight: '\uf061',  // 右箭头
+	  fruit: '\uf5d1', //水果
+	  drink: '\uf3ae', //饮料72f
+	  veggie: '\uf787', //蔬菜
+	  barricade: '\uf071', //路障
+	  all: '\uf07a',//万能
+	  soap: '\ue06b', //日用品'\uf5d0'
+	  sport: '\uf434',//体育用品
+	  electronic: '\uf3cd', //电子产品
+	  luxury: '\uf219',//奢侈品
+	  clothing: '\uf553',//服装
+	  electrical: '\uf390', //电器
+	  cash: '\uf788',//收银台
+	  
+    };
+    
+    // 加载Font Awesome字体
+    function loadFontAwesome() {
+      // 检查字体是否已加载
+      const font = new FontFace('FontAwesome', 'url(https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/fonts/fontawesome-webfont.woff2?v=4.7.0)');
+      
+      font.load().then(() => {
+        document.fonts.add(font);
+        fontLoaded = true;
+        console.log('Font Awesome loaded successfully');
+      }).catch(error => {
+        console.error('Failed to load Font Awesome:', error);
+        fontLoaded = true; // 即使加载失败也继续，使用替代方案
+      });
+    }
+    
+    // 创建房间
+    function createRoom() {
+      // 获取用户输入的行数和列数
+      const rowsInput = document.getElementById('rows');
+      const columnsInput = document.getElementById('columns');
+      
+      rows = parseInt(rowsInput.value);
+      columns = parseInt(columnsInput.value);
+      
+      // 验证输入
+      if (isNaN(rows) || isNaN(columns)) {
+        alert('请输入有效的数字');
+        return;
+      }
+      
+      // 验证房间大小（已改为30）
+      if (rows < 3 || rows > 30 || columns < 3 || columns > 30) {
+        alert('房间大小必须在3-30之间');
+        return;
+      }
+	  
+	  
+	  if(rows > 15){
+	    cellSize = -1.5 * rows + 70;
+		arrowSize = 16 * (cellSize / 50);
+	  }
+	  slider.value = Math.ceil(cellSize);
+	  slider.title = Math.ceil(cellSize);
+      
+      // 隐藏设置面板，显示编辑器
+      document.getElementById('room-setup').classList.add('hidden');
+      document.getElementById('editor').classList.remove('hidden');
+	  
+	  //隐藏模板
+	  document.getElementById('template-loader').classList.add('hidden');
+	  
+	  //隐藏扩口按钮
+	  document.getElementById('add-button').classList.add('hidden');
+      
+      // 设置Canvas实际尺寸（内部绘图尺寸，不受缩放影响）
+      canvas.width = columns * cellSize;
+      canvas.height = rows * cellSize;
+      
+      // 计算缩放比例
+      calculateScale();
+      
+      // 初始化网格数据
+      initializeGrid();
+      
+      // 绘制网格
+      drawGrid();
+      
+      // 滚动到Canvas区域
+      canvas.scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    // 初始化网格数据
+    function initializeGrid() {
+      grid = [];
+      entrance = null;
+      exit = null;
+      path = [];
+      
+      for (let y = 0; y < rows; y++) {
+        const row = [];
+        for (let x = 0; x < columns; x++) {
+          row.push({
+            type: ElementTypes.EMPTY,
+            rotation: 0,
+            shelfGroupId: null,
+            isShelfStart: false,
+            color: null // 颜色属性
+          });
+        }
+        grid.push(row);
+      }
+    }
+	
+	function initialSubRoomData(matrix, num){
+		if (!matrix || matrix.length === 0 || matrix[0].length === 0 || num < 1 || num > 15) {
+			console.log('参数异常');
+			return null;
+		}
+		
+		let minRow = 0;
+		let minCol = 0;
+		let rowValid = false;
+		
+		for (let row = 0; row < matrix.length; row++) {
+		
+		  rowValid = false;
+		  
+		  for(let col = 0; col < matrix[0].length; col++){
+		    const value = matrix[row][col];
+            const highNibble = (value >> 4) & 0x0F;
+			const lowNibble = value & 0x0F;
+			if(lowNibble === 2){
+			  entrance = {x: col, y: row};
+			}else if(lowNibble === 3){
+			  exit = {x: col, y: row};
+			}
+			
+			if(highNibble <= num){
+			  rowValid = true;
+			  if(col > minCol){
+			    minCol = col;
+			  }
+			}else{
+			  if(rowValid){
+			    break;
+			  }
+			}
+		  }
+		  
+		  //console.log('rowValid,minRow,row:',rowValid,',',minRow,',',row);
+		  if(rowValid){
+		    minRow = row;
+		  }else{
+		    break;
+		  }
+		}
+		
+		const subData = [];
+		for (let i = 0; i <= minRow; i++) {
+		  subData.push([...matrix[i].slice(0, minCol + 1)]);
+		}
+		
+		return subData;
+	}
+    
+    // 绘制整个网格
+    function drawGrid() {
+      // 清空画布
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      // 绘制背景和网格线
+      drawGridBackground();
+      
+      // 绘制元素
+      drawElements();
+      
+      // 绘制路径
+      drawPath();
+      
+      // 绘制鼠标悬停效果
+      drawHoverEffect();
+    }
+    
+    // 绘制网格背景和网格线
+    function drawGridBackground() {
+      // 绘制背景
+      ctx.fillStyle = ElementColors[ElementTypes.EMPTY];
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // 绘制网格线
+      ctx.strokeStyle = '#E5E7EB';
+      ctx.lineWidth = 1;
+      
+      // 绘制垂直线
+      for (let x = 0; x <= columns; x++) {
+        ctx.beginPath();
+        ctx.moveTo(x * cellSize, 0);
+        ctx.lineTo(x * cellSize, canvas.height);
+        ctx.stroke();
+      }
+      
+      // 绘制水平线
+      for (let y = 0; y <= rows; y++) {
+        ctx.beginPath();
+        ctx.moveTo(0, y * cellSize);
+        ctx.lineTo(canvas.width, y * cellSize);
+        ctx.stroke();
+      }
+    }
+    
+    // 绘制所有元素
+    function drawElements() {
+      // 首先处理货架组，确保它们作为整体绘制
+      const drawnGroups = new Set();
+      
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < columns; x++) {
+          const cell = grid[y][x];
+          
+          // 如果是货架且是起始单元格且未绘制过
+          if ((cell.type === ElementTypes.SHELF_1x1 || 
+               cell.type === ElementTypes.SHELF_2x1 || 
+               cell.type === ElementTypes.SHELF_2x2) && 
+              cell.isShelfStart && 
+              !drawnGroups.has(cell.shelfGroupId)) {
+            
+            drawnGroups.add(cell.shelfGroupId);
+            
+            // 根据货架类型绘制
+            if (cell.type === ElementTypes.SHELF_1x1) {
+              drawShelf1x1(x, y);
+            } else if (cell.type === ElementTypes.SHELF_2x1) {
+              if (cell.rotation === 0) {
+                drawShelf2x1Horizontal(x, y);
+              } else {
+                drawShelf2x1Vertical(x, y);
+              }
+            } else if (cell.type === ElementTypes.SHELF_2x2) {
+              drawShelf2x2(x, y);
+            }
+          }
+        }
+      }
+      
+      // 绘制其他元素（入口、出口、障碍物）
+      for (let y = 0; y < rows; y++) {
+        for (let x = 0; x < columns; x++) {
+          const cell = grid[y][x];
+          
+          // 跳过已绘制的货架
+          if (cell.type.startsWith('shelf-')) continue;
+          
+          switch (cell.type) {
+            case ElementTypes.ENTRANCE:
+              drawEntrance(x, y);
+              break;
+            case ElementTypes.EXIT:
+              drawExit(x, y);
+              break;
+            case ElementTypes.OBSTACLE:
+              drawObstacle(x, y);
+              break;
+          }
+        }
+      }
+    }
+    
+    // 绘制2x2货架
+    function drawShelf2x2(x, y) {
+      // 应用缩放
+      const xPos = x * cellSize * scale;
+      const yPos = y * cellSize * scale;
+      const scaledSize = cellSize * 2 * scale;
+      
+      // 绘制货架背景
+      ctx.fillStyle = ElementColors[ElementTypes.SHELF_2x2];
+      ctx.fillRect(xPos, yPos, scaledSize, scaledSize);
+      
+      // 绘制货架边框
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+      ctx.lineWidth = 2 * scale;
+      ctx.strokeRect(xPos, yPos, scaledSize, scaledSize);
+      
+      // 绘制内部分隔线
+	  /*
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+      ctx.lineWidth = 1 * scale;
+      
+      // 水平线
+      ctx.beginPath();
+      ctx.moveTo(xPos, yPos + cellSize * scale);
+      ctx.lineTo(xPos + scaledSize, yPos + cellSize * scale);
+      ctx.stroke();
+      
+      // 垂直线
+      ctx.beginPath();
+      ctx.moveTo(xPos + cellSize * scale, yPos);
+      ctx.lineTo(xPos + cellSize * scale, yPos + scaledSize);
+      ctx.stroke();*/
+      
+	  let icon = ElementIcons['electrical'];//electrical
+      // 绘制图标
+      drawIcon(xPos + scaledSize/2, yPos + scaledSize/2, icon, 24 * scale);
+	  
+	  drawNumber(x, y, 3, 50);
+    }
+    
+    // 绘制入口
+    function drawEntrance(x, y) {
+      // 应用缩放
+      const xPos = x * cellSize * scale;
+      const yPos = y * cellSize * scale;
+      const scaledSize = cellSize * scale;
+      
+      // 绘制入口背景
+      ctx.fillStyle = ElementColors[ElementTypes.ENTRANCE];
+      ctx.fillRect(xPos, yPos, scaledSize, scaledSize);
+	  
+	  //pathArrowRight
+	  let icon = ElementIcons[ElementTypes.ENTRANCE];
+	  if(x == 0){
+	    icon = ElementIcons['pathArrowRight'];
+	  }
+      
+      // 绘制图标
+      drawIcon(xPos + scaledSize/2, yPos + scaledSize/2, icon, 24 * scale);
+    }
+    
+    // 绘制出口
+    function drawExit(x, y) {
+      // 应用缩放
+      const xPos = x * cellSize * scale;
+      const yPos = y * cellSize * scale;
+      const scaledSize = cellSize * scale;
+      
+      // 绘制出口背景
+      ctx.fillStyle = ElementColors[ElementTypes.EXIT];
+      ctx.fillRect(xPos, yPos, scaledSize, scaledSize);
+      
+      // 绘制图标
+      drawIcon(xPos + scaledSize/2, yPos + scaledSize/2, ElementIcons[ElementTypes.EXIT], 24 * scale);
+    }
+    
+    // 绘制障碍物
+    function drawObstacle(x, y) {
+      // 应用缩放
+      const xPos = Math.floor(x * cellSize * scale);
+      const yPos = Math.floor(y * cellSize * scale);
+      const scaledSize = Math.ceil(cellSize * scale);
+      
+	  //收银台
+	  let color = ElementColors[ElementTypes.OBSTACLE];
+	  if (exit && ((x == exit.x && y == (exit.y - 1)) || (x == (exit.x + 1) && y == (exit.y - 1)))){
+	    color = ElementColors['cashRegister'];
+	  }
+      // 绘制障碍物背景
+      ctx.fillStyle = color;
+      ctx.fillRect(xPos, yPos, scaledSize, scaledSize);
+	  
+	  //收银台图标
+	  if(exit && (x == (exit.x + 1) && y == (exit.y - 1))){
+	    drawIcon(xPos + scaledSize/2 - cellSize/2, yPos + scaledSize/2, ElementIcons['cash'], 24 * scale);
+	  }
+      
+      // 绘制图标
+      //drawIcon(xPos + scaledSize/2, yPos + scaledSize/2, ElementIcons[ElementTypes.OBSTACLE], 24 * scale);
+    }
+    
+    // 绘制路径
+    function drawPath() {
+      if (path.length === 0) return;
+      
+      // 1. 绘制路径背景底色
+      ctx.fillStyle = ElementColors.pathBg;
+      ctx.globalAlpha = 0.7;
+      
+      path.forEach(point => {
+        const xPos = point.x * cellSize * scale;
+        const yPos = point.y * cellSize * scale;
+        const scaledSize = cellSize * scale;
+        ctx.fillRect(xPos, yPos, scaledSize, scaledSize);
+      });
+      
+      ctx.globalAlpha = 1;
+      
+      // 2. 绘制路径边框线
+      ctx.strokeStyle = ElementColors.path;
+      ctx.lineWidth = 2 * scale;
+      ctx.beginPath();
+      
+      // 起点
+      const firstPoint = path[0];
+      ctx.moveTo(
+        firstPoint.x * cellSize * scale + cellSize * scale / 2,
+        firstPoint.y * cellSize * scale + cellSize * scale / 2
+      );
+      
+      // 连接所有路径点
+      for (let i = 1; i < path.length; i++) {
+        const point = path[i];
+        ctx.lineTo(
+          point.x * cellSize * scale + cellSize * scale / 2,
+          point.y * cellSize * scale + cellSize * scale / 2
+        );
+      }
+      
+      ctx.stroke();
+      
+      // 3. 绘制圆圈包裹箭头的路径指示
+      for (let i = 1; i < path.length; i++) {
+        const point = path[i];
+        if (point.direction) {
+          const centerX = point.x * cellSize * scale + cellSize * scale / 2;
+          const centerY = point.y * cellSize * scale + cellSize * scale / 2;
+          drawCircleWithArrow(centerX, centerY, point.direction, arrowSize * scale, ElementColors.path);
+        }
+      }
+    }
+    
+    // 绘制圆圈包裹箭头的路径指示
+    function drawCircleWithArrow(x, y, direction, size, color) {
+      // 绘制圆圈
+      const circleRadius = size;
+      ctx.fillStyle = ElementColors.pathArrowCircle;
+      ctx.beginPath();
+      ctx.arc(x, y, circleRadius, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // 圆圈描边
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2 * scale;
+      ctx.beginPath();
+      ctx.arc(x, y, circleRadius, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // 确定箭头图标
+      let arrowIcon;
+      switch (direction) {
+        case 'up':
+          arrowIcon = ElementIcons.pathArrowUp;
+          break;
+        case 'down':
+          arrowIcon = ElementIcons.pathArrowDown;
+          break;
+        case 'left':
+          arrowIcon = ElementIcons.pathArrowLeft;
+          break;
+        case 'right':
+          arrowIcon = ElementIcons.pathArrowRight;
+          break;
+      }
+      
+      // 绘制箭头图标
+      if (arrowIcon) {
+        drawIcon(x, y, arrowIcon, size * 1.2, color);
+      }
+    }
+    
+    // 绘制图标
+    function drawIcon(x, y, icon, size, color = '#FFFFFF') {
+      if (!fontLoaded) {
+        // 字体未加载时显示简单形状
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(x, y, size/4, 0, Math.PI * 2);
+        ctx.fill();
+        return;
+      }
+      
+      ctx.font = `${size}px FontAwesome`;
+      ctx.fillStyle = color;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(icon, x, y);
+    }
+	
+	function calcMapKey(x, y){
+	  const cell = grid[y][x];
+	  const color = cell.color;
+	  //const rotation = cell.rotation;
+	  
+	  let mapKey = x + '|' + y;
+	  
+	  switch (cell.type) {
+        case ElementTypes.SHELF_1x1:
+		
+          if(color == 'shelf1x1_2'){
+		    mapKey += '|drink';
+		  }else if(color == 'shelf1x1_3'){
+		    mapKey += '|veggie';
+		  }else if(color == 'shelf1x1_5'){
+		    mapKey += '|all';
+		  }else{
+		    mapKey += '|fruit';
+		  }
+          break;
+          
+        case ElementTypes.SHELF_2x1:
+          
+		  if(color == 'shelf2x1_2'){
+		    mapKey += '|sport';
+		  }else if(color == 'shelf2x1_3'){
+		    mapKey += '|electronic';
+		  }else if(color == 'shelf2x1_4'){
+		    mapKey += '|luxury';
+		  }else if(color == 'shelf2x1_5'){
+		    mapKey += '|clothing';
+		  }else{
+		    mapKey += '|soap';
+		  }
+          
+          break;
+          
+        case ElementTypes.SHELF_2x2:
+          
+          mapKey += '|electrical';
+		  
+          break;
+      }
+	  
+	  return mapKey;
+	}
+	
+	function calcShelfData(){
+	    initShelfData();
+		// 遍历所有键值对
+		shelfMap.forEach((value, key) => {
+		  //console.log(`${key}: ${value}`);
+		  if(key.includes('fruit')){
+		    shelfData[0].shelfCount++;
+			shelfData[0].surfaceCount += value;
+		  }else if(key.includes('drink')){
+		    shelfData[1].shelfCount++;
+			shelfData[1].surfaceCount += value;
+		  }else if(key.includes('veggie')){
+		    shelfData[2].shelfCount++;
+			shelfData[2].surfaceCount += value;
+		  }else if(key.includes('soap')){
+		    shelfData[3].shelfCount++;
+			shelfData[3].surfaceCount += value;
+		  }else if(key.includes('sport')){
+		    shelfData[4].shelfCount++;
+			shelfData[4].surfaceCount += value;
+		  }else if(key.includes('electronic')){
+		    shelfData[5].shelfCount++;
+			shelfData[5].surfaceCount += value;
+		  }else if(key.includes('luxury')){
+		    shelfData[6].shelfCount++;
+			shelfData[6].surfaceCount += value;
+		  }else if(key.includes('clothing')){
+		    shelfData[7].shelfCount++;
+			shelfData[7].surfaceCount += value;
+		  }else if(key.includes('electrical')){
+		    shelfData[8].shelfCount++;
+			shelfData[8].surfaceCount += value;
+		  }else if(key.includes('all')){
+		    shelfData[9].shelfCount++;
+			shelfData[9].surfaceCount += value;
+		  }
+		});
+	}
+	
+	function initShelfData(){
+	  shelfData.forEach(item => {
+	    item.shelfCount = 0;
+		item.surfaceCount = 0;
+	  });
+	}
+	
+	// 绘制数字，显示在目标位置的右上角
+	function drawNumber(targetX, targetY, type, iconSize, numberColor = '#FFFFFF', bgColor = '#FF4444') {
+	  //console.log('mapKey:',calcMapKey(targetX, targetY));
+	  let xPos = targetX * cellSize * scale;
+      let yPos = targetY * cellSize * scale;
+      const scaledSize = cellSize * scale;
+	  xPos = xPos + scaledSize/2;
+	  yPos = yPos + scaledSize/2;
+	  // 1. 计算数字的位置（右上角偏移：向右偏移图标半径的1/2，向上偏移图标半径的1/2）
+	  // 偏移逻辑：让数字背景圆的左下角对齐图标右上角，视觉上更协调
+	  const numberOffset = iconSize / 4; // 偏移距离（可根据需求调整，值越大数字越靠外）
+	  let numberX = xPos + numberOffset; // 数字X坐标（图标右侧）
+	  let numberY = yPos - numberOffset; // 数字Y坐标（图标上方）
+	  if(type == 1 || type == 3){
+	      numberX = xPos + 3 * numberOffset * (cellSize / 30); 
+	      numberY = yPos - numberOffset * (cellSize / 50);
+	  }
+
+	  // 2. 计算数字背景圆的尺寸（根据数字长度动态调整，避免数字溢出）
+	  const number = calcSaleCount(targetX, targetY, type);
+	  const numberStr = String(number);
+	  // 背景圆直径：单个数字用8px，每多一个数字增加4px（可根据需求调整）
+	  const bgDiameter = 16;//numberStr.length === 1 ? 16 : 16 + (numberStr.length - 1) * 8;
+	  const bgRadius = bgDiameter * scale / 2;
+
+	  // 3. 绘制数字背景圆（先画背景再画数字，避免数字被覆盖）
+	  /*
+	  ctx.fillStyle = bgColor;
+	  ctx.beginPath();
+	  ctx.arc(numberX, numberY, bgRadius, 0, Math.PI * 2); // 画圆形背景
+	  ctx.fill();*/
+
+	  // 4. 绘制数字（字体大小适配背景圆，居中显示）
+	  const fontSize = bgDiameter * 0.6 * scale; // 字体大小为背景圆直径的60%，避免溢出
+	  ctx.font = `${fontSize}px Arial`; // 使用Arial字体（无需额外加载，兼容性好）
+	  ctx.fillStyle = numberColor;
+	  ctx.textAlign = 'center'; // 水平居中
+	  ctx.textBaseline = 'middle'; // 垂直居中
+	  ctx.fillText(numberStr, numberX, numberY); // 在背景圆中心绘制数字
+	  
+	  shelfMap.set(calcMapKey(targetX, targetY), number);
+	}
+	
+	function calcSaleCount(x, y, type){
+	  let surroundingGrids = getSurroundingGrids(x, y, type);
+	  //console.log('location:',x,',',y);
+	  //console.log('surroundingGrids:',surroundingGrids);
+	  let count = 0;
+	  surroundingGrids.forEach( item => {
+	    if(calcContains(item[0], item[1])){
+		  count ++;
+		}
+	  });
+	  return count;
+	}
+	
+	function calcContains(x, y){
+	  let result = false;
+	  calcPath.forEach( item => {
+	    if(item.x == x && item.y == y){
+		  result = true;
+		  return;
+		}
+	  });
+	  return result;
+	}
+	
+	function getSurroundingGrids(x, y, type) {
+	  // 8个方向的偏移量：[dx, dy]
+	  const offsets = [
+	    [
+			[-1, -1], [-1, 0], [-1, 1],
+			[0, -1],          [0, 1],
+			[1, -1],  [1, 0], [1, 1]
+	    ],
+		[
+			[-1, -1], [-1, 0], [-1, 1],
+			[0, -1],          [0, 1],
+			[1, -1],          [1, 1],
+			[2, -1],  [2, 0], [2, 1]
+	    ],
+		[
+			[-1, -1], [-1, 0], [-1, 1], [-1, 2],
+			[0, -1],                    [0, 2],
+			[1, -1],  [1, 0], [1, 1], [1, 2]
+	    ],
+		[
+			[-1, -1], [-1, 0], [-1, 1], [-1, 2],
+			[0, -1],                    [0, 2],
+			[1, -1],                    [1, 2],
+			[2, -1],  [2, 0], [2, 1], [2, 2]
+	    ],
+	  ];
+	  
+	  // 计算每个方向的坐标并返回
+	  return offsets[type].map(([dx, dy]) => [x + dx, y + dy]);
+	}
+    
+    // 处理Canvas点击事件 - 调整坐标计算以适应缩放
+    function handleCanvasClick(e) {
+      const rect = canvas.getBoundingClientRect();
+      // 考虑缩放比例计算实际坐标
+      const x = Math.floor(((e.clientX - rect.left) / scale) / cellSize);
+      const y = Math.floor(((e.clientY - rect.top) / scale) / cellSize);
+      
+      // 检查坐标是否在有效范围内
+      if (x < 0 || x >= columns || y < 0 || y >= rows) {
+        return;
+      }
+      
+      if (isDeleteMode) {
+        // 删除模式
+        deleteElementAt(x, y);
+        return;
+      }
+      
+      if (!selectedTool) {
+        //alert('请先选择一个工具');
+		showAutoAlert('请先选择一个工具', 'error');
+        return;
+      }
+      
+      // 处理不同工具的放置逻辑
+      switch (selectedTool) {
+        case ElementTypes.ENTRANCE:
+          placeEntrance(x, y);
+          break;
+        case ElementTypes.EXIT:
+          placeExit(x, y);
+          break;
+        case ElementTypes.OBSTACLE:
+          placeObstacle(x, y);
+          break;
+        case ElementTypes.SHELF_1x1:
+          placeShelf1x1(x, y);
+          break;
+        case ElementTypes.SHELF_2x1:
+          placeShelf2x1(x, y, shelfRotation);
+          break;
+        case ElementTypes.SHELF_2x2:
+          placeShelf2x2(x, y);
+          break;
+      }
+    }
+    
+    // 处理Canvas右键点击事件 - 调整坐标计算以适应缩放
+    function handleCanvasRightClick(e) {
+      e.preventDefault();
+      
+      const rect = canvas.getBoundingClientRect();
+      // 考虑缩放比例计算实际坐标
+      const x = Math.floor(((e.clientX - rect.left) / scale) / cellSize);
+      const y = Math.floor(((e.clientY - rect.top) / scale) / cellSize);
+      
+      // 检查坐标是否在有效范围内
+      if (x < 0 || x >= columns || y < 0 || y >= rows) {
+        return;
+      }
+      
+      deleteElementAt(x, y);
+    }
+    
+    // 处理Canvas鼠标移动事件 - 调整坐标计算以适应缩放
+    function handleCanvasMouseMove(e) {
+      const rect = canvas.getBoundingClientRect();
+      // 考虑缩放比例计算实际坐标
+      const x = Math.floor(((e.clientX - rect.left) / scale) / cellSize);
+      const y = Math.floor(((e.clientY - rect.top) / scale) / cellSize);
+      
+      // 更新鼠标位置
+      mouseX = e.clientX - rect.left;
+      mouseY = e.clientY - rect.top;
+      
+      // 更新悬停单元格
+      if (x >= 0 && x < columns && y >= 0 && y < rows) {
+        hoveredCell = { x, y };
+        document.getElementById('cell-coordinates').textContent = `坐标: (${x}, ${y})`;
+      } else {
+        hoveredCell = { x: -1, y: -1 };
+      }
+      
+      // 重绘以显示悬停效果
+      drawGrid();
+    }
+    
+    // 放置入口
+    function placeEntrance(x, y) {
+      // 检查是否已有入口
+      if (entrance) {
+        // 移除旧入口
+        grid[entrance.y][entrance.x].type = ElementTypes.EMPTY;
+      }
+      
+      // 确保位置为空
+      if (isPositionOccupied(x, y)) {
+        //alert('该位置已被占用');
+		showAutoAlert('该位置已被占用', 'error');
+        return;
+      }
+      
+      // 放置新入口
+      grid[y][x].type = ElementTypes.ENTRANCE;
+      entrance = { x, y };
+      
+      // 重新绘制网格
+      drawGrid();
+      
+      // 如果已有出口，计算路径
+      if (exit) {
+        calculatePath();
+      }
+    }
+    
+    // 放置出口
+    function placeExit(x, y) {
+      // 检查是否已有出口
+      if (exit) {
+        // 移除旧出口
+        grid[exit.y][exit.x].type = ElementTypes.EMPTY;
+      }
+      
+      // 确保位置为空
+      if (isPositionOccupied(x, y)) {
+        //alert('该位置已被占用');
+		showAutoAlert('该位置已被占用', 'error');
+        return;
+      }
+      
+      // 放置新出口
+      grid[y][x].type = ElementTypes.EXIT;
+      exit = { x, y };
+      
+      // 重新绘制网格
+      drawGrid();
+      
+      // 如果已有入口，计算路径
+      if (entrance) {
+        calculatePath();
+      }
+    }
+    
+    // 放置障碍物
+    function placeObstacle(x, y) {
+      // 检查是否是入口或出口
+      if ((entrance && entrance.x === x && entrance.y === y) || 
+          (exit && exit.x === x && exit.y === y)) {
+        //alert('不能在入口或出口处放置障碍物');
+		showAutoAlert('不能在入口或出口处放置障碍物', 'error');
+        return;
+      }
+      
+      // 切换障碍物状态
+      if (grid[y][x].type === ElementTypes.OBSTACLE) {
+        grid[y][x].type = ElementTypes.EMPTY;
+      } else {
+        grid[y][x].type = ElementTypes.OBSTACLE;
+      }
+      
+      // 重新绘制网格
+      drawGrid();
+      
+      // 如果已有入口和出口，重新计算路径
+      if (entrance && exit) {
+        calculatePath();
+      }
+    }
+    
+    // 放置2x2货架
+    function placeShelf2x2(x, y) {
+      // 检查空间是否足够
+      if (x + 1 >= columns || y + 1 >= rows) {
+        //alert('空间不足，无法放置货架');
+        return;
+      }
+      
+      // 检查所有位置是否可用
+      for (let dy = 0; dy < 2; dy++) {
+        for (let dx = 0; dx < 2; dx++) {
+          if (!isPositionAvailable(x + dx, y + dy)) {
+            return;
+          }
+        }
+      }
+      
+      // 生成货架组ID
+      const groupId = `shelf-${Date.now()}-${x}-${y}`;
+      
+      // 放置货架
+      for (let dy = 0; dy < 2; dy++) {
+        for (let dx = 0; dx < 2; dx++) {
+          grid[y + dy][x + dx].type = ElementTypes.SHELF_2x2;
+          grid[y + dy][x + dx].rotation = 0;
+          grid[y + dy][x + dx].shelfGroupId = groupId;
+          grid[y + dy][x + dx].isShelfStart = (dx === 0 && dy === 0);
+        }
+      }
+      
+      // 重新绘制网格
+      drawGrid();
+      
+      // 如果已有入口和出口，重新计算路径
+      if (entrance && exit) {
+        calculatePath();
+      }
+    }
+    
+    // 删除指定位置的元素
+    function deleteElementAt(x, y) {
+      const cell = grid[y][x];
+      
+      // 不能删除入口或出口
+      if (cell.type === ElementTypes.ENTRANCE) {
+        alert('不能删除入口');
+        return;
+      }
+      
+      if (cell.type === ElementTypes.EXIT) {
+        alert('不能删除出口');
+        return;
+      }
+	  
+	  if(mockRoom && cell.type === ElementTypes.OBSTACLE){
+	    //alert('模板房间不能删除障碍物');
+		return;
+	  }
+      
+	  let isShelf = false;
+	  let x0 = x;
+	  let y0 = y;
+	  let mapKey = '';
+      // 处理不同类型元素的删除
+      switch (cell.type) {
+        case ElementTypes.OBSTACLE:
+          // 直接删除
+          grid[y][x].type = ElementTypes.EMPTY;
+          break;
+          
+        case ElementTypes.SHELF_1x1:
+		  isShelf = true;
+		  if(cell.color === 'shelf1x1_4'){
+		    isShelf = false;
+		  }
+		  mapKey = calcMapKey(x0, y0);
+          // 直接删除
+          grid[y][x].type = ElementTypes.EMPTY;
+          grid[y][x].shelfGroupId = null;
+          grid[y][x].isShelfStart = false;
+          grid[y][x].color = null; // 清除颜色信息
+		  
+          break;
+          
+        case ElementTypes.SHELF_2x1:
+          // 找到整个货架并删除
+          const groupId = cell.shelfGroupId;
+          
+          for (let cy = 0; cy < rows; cy++) {
+            for (let cx = 0; cx < columns; cx++) {
+              if (grid[cy][cx].shelfGroupId === groupId) {
+			    if(grid[cy][cx].isShelfStart){
+				  x0 = cx;
+				  y0 = cy;
+				  mapKey = calcMapKey(x0, y0);
+				}
+                grid[cy][cx].type = ElementTypes.EMPTY;
+                grid[cy][cx].shelfGroupId = null;
+                grid[cy][cx].isShelfStart = false;
+                grid[cy][cx].color = null; // 清除颜色信息
+              }
+            }
+          }
+		  isShelf = true;
+          break;
+          
+        case ElementTypes.SHELF_2x2:
+          // 找到整个货架并删除
+          const groupId2 = cell.shelfGroupId;
+          
+          for (let cy = 0; cy < rows; cy++) {
+            for (let cx = 0; cx < columns; cx++) {
+              if (grid[cy][cx].shelfGroupId === groupId2) {
+			    if(grid[cy][cx].isShelfStart){
+				  x0 = cx;
+				  y0 = cy;
+				  mapKey = calcMapKey(x0, y0);
+				}
+                grid[cy][cx].type = ElementTypes.EMPTY;
+                grid[cy][cx].shelfGroupId = null;
+                grid[cy][cx].isShelfStart = false;
+              }
+            }
+          }
+		  isShelf = true;
+          break;
+      }
+	  
+	  if(isShelf){
+		  //console.log(isShelf,'|delete map key:',mapKey);
+		  shelfMap.delete(mapKey);
+	  }
+	  
+      
+      // 重新绘制网格
+      drawGrid();
+      
+      // 如果已有入口和出口，重新计算路径
+      if (entrance && exit) {
+        calculatePath();
+      }
+    }
+    
+    // 检查位置是否被占用
+    function isPositionOccupied(x, y) {
+      return grid[y][x].type !== ElementTypes.EMPTY;
+    }
+    
+    // 检查位置是否可用于放置元素
+    function isPositionAvailable(x, y) {
+      // 检查是否在边界内
+      if (x < 0 || x >= columns || y < 0 || y >= rows) {
+        return false;
+      }
+      
+      // 检查是否是入口或出口
+      if ((entrance && entrance.x === x && entrance.y === y) || 
+          (exit && exit.x === x && exit.y === y) ||
+		  (exit && (exit.x + 1) === x && exit.y === y)
+		  ) {
+        //alert('不能在入口或出口处放置元素');
+		showAutoAlert('不能在入口或出口处放置货架', 'error');
+        return false;
+      }
+      
+      // 检查是否已有元素
+      if (grid[y][x].type !== ElementTypes.EMPTY) {
+        //alert('该位置已有其他元素');
+        return false;
+      }
+      
+      return true;
+    }
+    
+    // 选择工具
+    function selectTool(tool) {
+      // 取消删除模式
+      isDeleteMode = false;
+      document.getElementById('delete-element').classList.remove('active');
+      
+      // 更新选中的工具
+      selectedTool = tool;
+      
+      // 更新工具按钮样式
+      document.querySelectorAll('[data-tool]').forEach(button => {
+        if (button.dataset.tool === tool) {
+          button.classList.add('active');
+        } else {
+          button.classList.remove('active');
+        }
+      });
+      
+      // 重绘以显示预览效果
+      drawGrid();
+    }
+    
+    // 切换货架旋转状态
+    function toggleShelfRotation() {
+      shelfRotation = shelfRotation === 0 ? 1 : 0;
+      
+      // 更新货架按钮显示
+      const shelfButton = document.getElementById('shelf-2x1-button');
+      if (shelfRotation === 0) {
+        shelfButton.innerHTML = `
+          <div class="tool-shelf-preview">
+            <div class="tool-shelf-2x1-horizontal"></div>
+          </div>
+          2x1货架
+        `;
+      } else {
+        shelfButton.innerHTML = `
+          <div class="tool-shelf-preview">
+            <div class="tool-shelf-2x1-vertical"></div>
+          </div>
+          1x2货架
+        `;
+      }
+      
+      // 如果当前选中的是2x1货架，保持选中状态
+      if (selectedTool === ElementTypes.SHELF_2x1) {
+        shelfButton.classList.add('active');
+      }
+      
+      // 重绘以更新预览效果
+      drawGrid();
+    }
+    
+    // 切换删除模式
+    function toggleDeleteMode() {
+      isDeleteMode = !isDeleteMode;
+      
+      // 更新删除按钮样式
+      const deleteButton = document.getElementById('delete-element');
+      if (isDeleteMode) {
+        deleteButton.classList.add('active');
+        
+        // 取消其他工具的选中状态
+        document.querySelectorAll('[data-tool]').forEach(button => {
+          button.classList.remove('active');
+        });
+        
+        // 取消选中的工具
+        selectedTool = null;
+      } else {
+        deleteButton.classList.remove('active');
+      }
+      
+      // 重绘以更新预览效果
+      drawGrid();
+    }
+    
+    // 清空房间
+    function clearRoom() {
+	  if(!mockRoom){
+		  if (confirm('确定要清空房间吗？所有元素将被删除。')) {
+			initializeGrid();
+			drawGrid();
+			document.getElementById('path-status').classList.add('hidden');
+			document.getElementById('no-path').classList.add('hidden');
+		  }
+	  }else{
+	      if (confirm('确定要清空房间吗？所有货架将被删除。')) {
+			// 遍历二维数组：外层遍历行（x），内层遍历列（y）
+			grid.forEach((row, x) => {
+			  // row 是当前行的数组（如 [1,2,3]），x 是行索引
+			  row.forEach((value, y) => {
+				// value 是当前单元格值，y 是列索引
+				if(!(value.type === ElementTypes.ENTRANCE || value.type === ElementTypes.EXIT || value.type === ElementTypes.OBSTACLE)){
+				  deleteElementAt(y, x);
+				}
+			  });
+			});
+			drawGrid();
+			document.getElementById('path-status').classList.add('hidden');
+			document.getElementById('no-path').classList.add('hidden');
+		  }
+	  }
+    }
+    
+    // 计算路径 (A*算法)
+    function calculatePath() {
+      if (!entrance || !exit) {
+        path = [];
+		calcPath = [];
+        updatePathStatus();
+		calcShelfData();
+	    fillTableData();
+        return;
+      }
+      
+      // A*算法实现
+      const openList = [];
+      const closedList = [];
+      
+      // 初始化起点
+      const startNode = {
+        x: entrance.x,
+        y: entrance.y,
+        g: 0,
+        h: heuristic(entrance.x, entrance.y, exit.x, exit.y),
+        f: 0,
+        parent: null
+      };
+	  
+	  // 定义方向优先级（例如：右 > 下 > 左 > 上）
+		const directionPriority = {
+			'right': 1,
+			'down': 3,
+			'left': 0,
+			'up': 2
+		};
+      
+      startNode.f = startNode.g + startNode.h;
+      openList.push(startNode);
+      
+      while (openList.length > 0) {
+        // 找到f值最小的节点
+        let currentNodeIndex = 0;
+        let currentNode = openList[0];
+        
+        for (let i = 1; i < openList.length; i++) {
+          if (openList[i].f < currentNode.f) {
+            currentNode = openList[i];
+            currentNodeIndex = i;
+          }else if (openList[i].f === currentNode.f) {
+			// 获取方向优先级
+			const currentPriority = currentNode.parent ? 
+				directionPriority[getDirection(currentNode.parent, currentNode)] : 4;
+			const newPriority = openList[i].parent ? 
+				directionPriority[getDirection(openList[i].parent, openList[i])] : 4;
+			
+			// 优先选择优先级高的方向
+			if (newPriority < currentPriority) {
+				currentNode = openList[i];
+				currentNodeIndex = i;
+			}
+		  }
+        }
+        
+        // 将当前节点从开放列表移到关闭列表
+        openList.splice(currentNodeIndex, 1);
+        closedList.push(currentNode);
+        
+        // 检查是否到达终点
+        if (currentNode.x === exit.x && currentNode.y === exit.y) {
+          // 回溯路径
+          path = [];
+          let current = currentNode;
+          
+          while (current.parent) {
+            const direction = getDirection(current.parent, current);
+            path.push({
+              x: current.x,
+              y: current.y,
+              direction
+            });
+            current = current.parent;
+          }
+          
+          // 添加起点
+          path.push({
+            x: entrance.x,
+            y: entrance.y,
+            direction: path.length > 0 ? path[path.length - 1].direction : null
+          });
+          
+          // 反转路径，使其从起点到终点
+          path.reverse();
+		  
+		  let sale_x = exit.x + 1;
+		  let sale_y = exit.y;
+		  let containsSale = false;
+		  if(path[path.length - 2].x == sale_x && path[path.length - 2].y == sale_y){
+		    containsSale = true;
+		  }
+		  calcPath = [];
+		  path.forEach(item => {
+			  calcPath.push({
+			    x: item.x,
+				y: item.y
+			  });
+		  });
+		  if(containsSale){
+		    calcPath.pop();
+		  }else{
+		    calcPath.push({
+			  x: sale_x,
+			  y: sale_y
+			});
+		  }
+		  
+		  //path.pop();
+          
+          // 更新路径状态
+          updatePathStatus();
+          
+          // 重新绘制网格以显示路径
+          drawGrid();
+		  
+		  //打印路径
+		  //console.log('path: ', path);
+		  calcShelfData();
+		  fillTableData();
+          return;
+        }
+        
+        // 生成相邻节点
+        const neighbors = getNeighbors(currentNode);
+        
+        for (const neighbor of neighbors) {
+          // 检查是否在关闭列表中
+          if (closedList.some(node => node.x === neighbor.x && node.y === neighbor.y)) {
+            continue;
+          }
+          
+          // 计算g值
+          const tentativeG = currentNode.g + 1;
+          
+          // 检查是否在开放列表中
+          const neighborIndex = openList.findIndex(node => node.x === neighbor.x && node.y === neighbor.y);
+          
+          if (neighborIndex === -1) {
+            // 不在开放列表中，添加进去
+            neighbor.g = tentativeG;
+            neighbor.h = heuristic(neighbor.x, neighbor.y, exit.x, exit.y);
+            neighbor.f = neighbor.g + neighbor.h;
+            neighbor.parent = currentNode;
+            openList.push(neighbor);
+          } else if (tentativeG < openList[neighborIndex].g) {
+            // 在开放列表中，但找到了更好的路径
+            openList[neighborIndex].g = tentativeG;
+            openList[neighborIndex].f = openList[neighborIndex].g + openList[neighborIndex].h;
+            openList[neighborIndex].parent = currentNode;
+          }
+        }
+      }
+      
+      // 没有找到路径
+      path = [];
+	  calcPath = [];
+      updatePathStatus();
+      
+      // 重新绘制网格
+      drawGrid();
+	  
+	  calcShelfData();
+	  fillTableData();
+    }
+    
+    // 启发函数 (曼哈顿距离)
+    function heuristic(x1, y1, x2, y2) {
+      return Math.abs(x1 - x2) + Math.abs(y1 - y2);
+    }
+    
+    // 获取相邻节点
+    function getNeighbors(node) {
+      const neighbors = [];
+      const directions = [
+        { x: 0, y: -1 }, // 上
+        { x: 0, y: 1 },  // 下
+        { x: -1, y: 0 }, // 左
+        { x: 1, y: 0 }   // 右
+      ];
+      
+      for (const dir of directions) {
+        const x = node.x + dir.x;
+        const y = node.y + dir.y;
+        
+        // 检查是否在网格范围内
+        if (x >= 0 && x < columns && y >= 0 && y < rows) {
+          // 检查是否是可通行的
+          if (isPassable(x, y)) {
+            neighbors.push({
+              x,
+              y,
+              g: 0,
+              h: 0,
+              f: 0,
+              parent: null
+            });
+          }
+        }
+      }
+      
+      return neighbors;
+    }
+    
+    // 检查单元格是否可通行
+    function isPassable(x, y) {
+      const cell = grid[y][x];
+      
+      // 入口和出口是可通行的
+      if (cell.type === ElementTypes.ENTRANCE || cell.type === ElementTypes.EXIT) {
+        return true;
+      }
+      
+      // 空单元格是可通行的
+      if (cell.type === ElementTypes.EMPTY) {
+        return true;
+      }
+      
+      // 其他类型的单元格是不可通行的
+      return false;
+    }
+    
+    // 获取两个相邻节点之间的方向
+    function getDirection(from, to) {
+      if (from.x === to.x) {
+        return from.y < to.y ? 'down' : 'up';
+      } else {
+        return from.x < to.x ? 'right' : 'left';
+      }
+    }
+    
+    // 更新路径状态显示
+    function updatePathStatus() {
+      const pathStatus = document.getElementById('path-status');
+      const noPath = document.getElementById('no-path');
+      
+      if (path.length > 0) {
+        pathStatus.classList.remove('hidden');
+        noPath.classList.add('hidden');
+        document.getElementById('path-length').textContent = path.length - 1;
+      } else if (entrance && exit) {
+        pathStatus.classList.add('hidden');
+        noPath.classList.remove('hidden');
+      } else {
+        pathStatus.classList.add('hidden');
+        noPath.classList.add('hidden');
+      }
+    }
+	
+	function fillTableData(){
+	
+		// 清空现有内容
+		tableBody.innerHTML = '';
+		// 计算总和
+		let totalShelf = 0;       // 货架数合计
+		let totalSurface = 0;     // 售货面数合计
+		
+		// 循环生成数据行，并累加总和
+		shelfData.forEach(shelf => {
+		  if(shelf.shelfCount > 0){
+			// 累加合计
+			totalShelf += shelf.shelfCount;
+			totalSurface += shelf.surfaceCount;
+			// 创建数据行（与之前相同）
+			const row = document.createElement('tr');
+			row.className = 'border-b border-gray-100 hover:bg-gray-50';
+
+			// 图标列
+			const iconCell = document.createElement('td');
+			iconCell.className = 'py-2';
+			iconCell.innerHTML = `<i class="fa ${shelf.iconClass} mr-1" style="color: ${shelf.iconColor};"></i>`;
+
+			// 名称列
+			const nameCell = document.createElement('td');
+			nameCell.className = 'py-2';
+			nameCell.textContent = shelf.name;
+
+			// 货架数列
+			const countCell = document.createElement('td');
+			countCell.className = 'py-2';
+			countCell.textContent = shelf.shelfCount;
+
+			// 售货面数列
+			const surfaceCell = document.createElement('td');
+			surfaceCell.className = 'py-2';
+			surfaceCell.textContent = shelf.surfaceCount;
+
+			// 拼接行
+			row.append(iconCell, nameCell, countCell, surfaceCell);
+			tableBody.appendChild(row);
+		  }
+		});
+		
+		// 4. 添加合计行（在所有数据行之后）
+		const totalRow = document.createElement('tr');
+		totalRow.className = 'border-t-2 border-gray-300 font-bold text-gray-800'; // 加粗+上边框区分
+
+		// 合计行第一列（空，或显示“合计”标签）
+		const totalLabelCell = document.createElement('td');
+		totalLabelCell.className = 'py-3';
+		totalLabelCell.textContent = '合计'; // 可自定义标签
+
+		// 合计行第二列（空，或留空）
+		const emptyCell = document.createElement('td');
+		emptyCell.className = 'py-3';
+
+		// 合计行第三列（货架数总和）
+		const totalShelfCell = document.createElement('td');
+		totalShelfCell.className = 'py-3';
+		totalShelfCell.textContent = totalShelf;
+
+		// 合计行第四列（售货面数总和）
+		const totalSurfaceCell = document.createElement('td');
+		totalSurfaceCell.className = 'py-3';
+		totalSurfaceCell.textContent = totalSurface;
+
+		// 拼接合计行
+		totalRow.append(totalLabelCell, emptyCell, totalShelfCell, totalSurfaceCell);
+		tableBody.appendChild(totalRow);
+	
+	}
+    
+    // 页面加载完成后初始化
+    window.addEventListener('DOMContentLoaded', init);
+  </script>
+</body>
+</html>
