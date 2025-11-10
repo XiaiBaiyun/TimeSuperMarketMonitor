@@ -6,6 +6,7 @@
   <title>时光超市</title>
   <!-- Tailwindwind CSS v3 -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="./localforage.min.js"></script>
   <!-- Font Awesome -->
   
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -48,6 +49,13 @@
         }
       }
     }
+	
+	// 配置数据库（可选，默认也能直接用）
+	localforage.config({
+	  name: 'StoreArchiveDB', // 数据库名
+	  storeName: 'store_archives', // 表名（对象仓库名）
+	  version: 1.0
+	});
   </script>
   
   <style type="text/tailwindcss">
@@ -167,6 +175,9 @@
   <div class="container mx-auto px-4 py-8">
     <header class="mb-8 text-center">
       <h1 class="text-4xl font-bold text-primary mb-2">超市游戏 - 房间编辑器</h1>
+	  <a href="https://store.steampowered.com/app/3687810/_/" class="text-blue-600 hover:text-blue-800 underline hover:no-underline transition-colors duration-200 text-lg" target="_blank" rel="noopener noreferrer">
+		<i class="fa-solid fa-play mr-2"></i>进入游戏
+	  </a>
       <!-- 滚动图标容器 -->
 	  <div class="icon-scroll-container overflow-hidden py-2">
 		<div class="icon-track flex animate-scroll">
@@ -385,9 +396,9 @@
 				</button>
 			</div>
 			<div class="flex gap-2">
-				<button class="save-button bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors" id="save-button" data-template="0" title="保存缓存">保存</button>
-				<button class="clear-button bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors" id="clear-button" data-template="0" title="删除缓存">删除</button>
+				<button class="save-button bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors" id="save-button" data-template="0" title="保存或读取缓存">保存/读取</button>
 				<button class="export-button bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors" id="export-button" data-template="0" title="导出预设">导出</button>
+				<button class="import-button bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors" id="import-button" data-template="0" title="导入预设，将清空当前布局">导入</button>
 			</div>
 			
             <div class="text-sm text-gray-600">
@@ -714,6 +725,28 @@
     </div>
 	
   </div>
+  
+	  <!-- 保存弹窗（默认隐藏） -->
+	<div id="save-modal" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 hidden">
+		<div class="bg-white rounded-xl p-6 w-full max-w-2xl max-h-[80vh] overflow-auto">
+			<h3 class="text-xl font-bold text-center mb-6">选择存档</h3>
+			
+			<!-- 数据卡槽容器（2列布局） -->
+			<div class="grid grid-cols-2 gap-4 mb-6">
+				<!-- 卡槽1-10 动态渲染 -->
+			</div>
+			
+			<!-- 操作按钮 -->
+			<div class="flex justify-center gap-4">
+				<button id="modal-save" class="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg transition-colors">保存到存档</button>
+				<button id="modal-load" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg transition-colors">读取存档</button>
+				<button id="modal-close" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg transition-colors">关闭</button>
+			</div>
+		</div>
+	</div>
+	
+	<!-- 隐藏的文件选择器（用于触发文件选择窗口） -->
+	<input type="file" id="file-uploader" accept=".json" style="display: none;">
 
   <script>
     // 全局变量 - 新增缩放相关变量
@@ -739,6 +772,12 @@
 	let shelfMap = new Map();
 	let mockRoom = false;
 	let defaultRaputation = 1;
+	
+	let totalShelf = 0;       // 货架数合计
+	let totalSurface = 0;     // 售货面数合计
+	let saveSlots = [];
+
+
 	const exportModal = document.getElementById('exportModal');
 	const templateLoaderDiv = document.getElementById('template-loader');
 	const tableBody = document.getElementById('shelfTableBody');
@@ -751,12 +790,24 @@
 	const exportButton = document.getElementById('export-button');
 	const confirmExport = document.getElementById('confirmExport');
 	const exportForm = document.getElementById('exportForm');
+	const fileUploader = document.getElementById('file-uploader');
+	const importButton = document.getElementById('import-button');
 	
+	const modalSaveButton = document.getElementById('modal-save');
 	const storeSelect = document.querySelector('select[name="store"]');
 	const reputationInput = document.querySelector('input[name="reputation"]');
 	
 	const commonShelfLevelInupt = document.querySelector('input[name="commonShelfLevel"]');
 	const universalShelfLevelInput = document.querySelector('input[name="universalShelfLevel"]');
+	
+	// 全局变量
+	let STORAGE_KEY_PREFIX = 'store_cache_'; // 缓存键前缀
+	let selectedSlot = null; // 选中的卡槽索引
+	let currentStoreData = { // 当前店面数据（实际项目中替换为真实数据来源）
+		name: '1店1口', // 示例数据
+		shelfCount: 12, // 示例货架数
+		salesSurfaceCount: 36 // 示例售货面数
+	};
 	
 	const shelfData = [
 		  {
@@ -1108,6 +1159,12 @@
 	  commonShelfLevelInupt.addEventListener('blur', () => handleLevelInput(0, commonShelfLevelInupt));
 	  universalShelfLevelInput.addEventListener('blur', () => handleLevelInput(1, universalShelfLevelInput));
 	  
+	  // 绑定按钮事件
+      document.getElementById('save-button').addEventListener('click', openSaveModal);
+      document.getElementById('modal-close').addEventListener('click', closeSaveModal);
+      document.getElementById('modal-save').addEventListener('click', saveToSelectedSlot);
+      document.getElementById('modal-load').addEventListener('click', loadFromSelectedSlot);
+	  
       
       // 绑定模板按钮事件
       document.querySelectorAll('.template-button').forEach(button => {
@@ -1117,18 +1174,22 @@
       });
 	  
 	  // 绑定保存按钮事件
+	  /*
       document.querySelectorAll('.save-button').forEach(button => {
         button.addEventListener('click', () => {
           saveCacheData(button.dataset.template);
         });
-      });
+      });*/
 	  
-	  // 绑定删除按钮事件
-      document.querySelectorAll('.clear-button').forEach(button => {
-        button.addEventListener('click', () => {
-          clearCacheData(button.dataset.template);
-        });
-      });
+	  // 绑定导入按钮事件
+	  importButton.addEventListener('click', () => {
+		fileUploader.click(); // 触发隐藏的文件选择器
+	  });
+
+	  // 2. 用户选择文件后，读取并处理
+	  fileUploader.addEventListener('change', handleJsonFileSelect);
+		  
+
 	  
 	  // 绑定导出按钮事件
       document.querySelectorAll('.export-button').forEach(button => {
@@ -1216,6 +1277,384 @@
         }
       });
     });
+	
+	/**
+	 * 打开保存弹窗
+	 */
+	function openSaveModal() {
+		selectedSlot = null; // 重置选中状态
+		//renderCacheSlots(); // 每次打开重新渲染最新缓存数据
+		//document.getElementById('save-modal').classList.remove('hidden');
+		renderCacheSlots().then(() => {
+			document.getElementById('save-modal').classList.remove('hidden');
+		  });
+	}
+	
+	/**
+	 * 关闭保存弹窗
+	 */
+	function closeSaveModal() {
+		document.getElementById('save-modal').classList.add('hidden');
+	}
+	
+	function handleJsonFileSelect(e) {
+	  const file = e.target.files[0]; // 获取用户选择的第一个文件
+	  if (!file) return; // 未选择文件，直接返回
+
+	  // 验证文件格式（仅允许 .json）
+	  if (file.type !== 'application/json' && !file.name.endsWith('.json')) {
+		showAutoAlert('请选择 .json 格式的文件！', 'error');
+		fileUploader.value = ''; // 重置文件选择器，避免重复触发
+		return;
+	  }
+
+	  // 读取文件内容（FileReader 异步读取）
+	  const reader = new FileReader();
+	  
+	  // 读取成功后的回调
+	  reader.onload = function(event) {
+		try {
+		  // 解析 JSON 文件内容（需确保文件格式正确）
+		  const importedData = JSON.parse(event.target.result);
+		  
+		  // 验证导入数据的结构（根据你的业务需求调整，避免无效数据）
+		  if (!validateImportData(importedData)) {
+			showAutoAlert('导入文件格式错误，缺少必要信息！', 'error');
+			return;
+		  }
+
+		  // 3. 调用加载数据的方法（替换为你的实际加载逻辑）
+		  loadImportedData(importedData);
+		  
+		  showAutoAlert('导入成功！', 'success');
+		} catch (err) {
+		  console.error('JSON 解析失败：', err);
+		  showAutoAlert('导入失败，文件格式不正确！', 'error');
+		} finally {
+		  fileUploader.value = ''; // 重置文件选择器，允许重新选择
+		}
+	  };
+
+	  // 读取失败的回调
+	  reader.onerror = function() {
+		showAutoAlert('文件读取失败，请重试！', 'error');
+		fileUploader.value = '';
+	  };
+
+	  // 开始读取文件（以文本格式读取 JSON）
+	  reader.readAsText(file);
+	}
+	
+	function validateImportData(data) {
+	  // 示例：假设你的数据必须包含 name、shelfCount、salesSurfaceCount 字段
+	  return !!data && Array.isArray(data.doodadLayoutDataList) && data.doodadLayoutDataList.length > 0;
+	}
+	
+	function loadImportedData(importedData){
+	    console.log('importedData:',importedData);
+		
+		document.getElementById('path-status').classList.add('hidden');
+		document.getElementById('no-path').classList.add('hidden');
+		
+		shelfMap.clear();
+		
+	    // 遍历二维数组：外层遍历行（x），内层遍历列（y）
+		grid.forEach((row, x) => {
+		  // row 是当前行的数组（如 [1,2,3]），x 是行索引
+		  row.forEach((value, y) => {
+			// value 是当前单元格值，y 是列索引
+			if(!(value.type === ElementTypes.ENTRANCE || value.type === ElementTypes.EXIT || value.type === ElementTypes.OBSTACLE)){
+			  deleteElementAt(y, x);
+			}
+		  });
+		});
+		
+		let doodadLayoutDataList = importedData.doodadLayoutDataList;
+		const template1x1ColorMap = {
+		  1: 'shelf1x1_1',
+		  2: 'shelf1x1_2',
+		  3: 'shelf1x1_3',
+		  20030: 'shelf1x1_4',
+		  1001: 'shelf1x1_5'
+		};
+		const template2x1ColorMap = {
+		  4: 'shelf2x1_1',
+		  5: 'shelf2x1_2',
+		  6: 'shelf2x1_3',
+		  7: 'shelf2x1_4',
+		  8: 'shelf2x1_5'
+		};
+		doodadLayoutDataList.forEach(template => {
+			let cellPositions = template.cellPositions;
+			let nTemplateID = template.nTemplateID;
+			
+			if(cellPositions.length === 1 && template1x1ColorMap[nTemplateID]){
+			  let y = 59 - cellPositions[0].x;
+			  let x = 59 - cellPositions[0].y;
+				// 检查位置是否可用
+			  if (isPositionAvailableNoAlert(x, y)){
+			  
+				  // 生成货架组ID
+				  const groupId = `shelf-${Date.now()}-${x}-${y}`;
+				  
+				  // 放置货架，保存当前选中的颜色
+				  grid[y][x].type = ElementTypes.SHELF_1x1;
+				  grid[y][x].rotation = 0;
+				  grid[y][x].shelfGroupId = groupId;
+				  grid[y][x].isShelfStart = true;
+				  grid[y][x].color = template1x1ColorMap[nTemplateID]; // 保存颜色
+			  }
+			}else if(cellPositions.length === 2 && template2x1ColorMap[nTemplateID]){
+			  let y = 59 - cellPositions[1].x;
+			  let x = 59 - cellPositions[1].y;
+			  
+			  let rotation = cellPositions[0].x === cellPositions[1].x ? 0 : 1;
+			  // 检查空间是否足够
+			  
+			  if(
+			    (rotation === 0 && x + 1 < columns && isPositionAvailableNoAlert(x, y) && isPositionAvailableNoAlert(x + 1, y)) ||
+				(rotation === 1 && y + 1 < rows && isPositionAvailableNoAlert(x, y) && isPositionAvailableNoAlert(x, y + 1))
+			  ){
+			  
+			    // 生成货架组ID
+				  const groupId = `shelf-${Date.now()}-${x}-${y}`;
+				  // 当前选中的颜色
+				  const color = template2x1ColorMap[nTemplateID];
+				  
+				  // 放置货架
+				  if (rotation === 0) { // 水平
+					grid[y][x].type = ElementTypes.SHELF_2x1;
+					grid[y][x].rotation = rotation;
+					grid[y][x].shelfGroupId = groupId;
+					grid[y][x].isShelfStart = true;
+					grid[y][x].color = color; // 保存颜色
+					
+					grid[y][x + 1].type = ElementTypes.SHELF_2x1;
+					grid[y][x + 1].rotation = rotation;
+					grid[y][x + 1].shelfGroupId = groupId;
+					grid[y][x + 1].isShelfStart = false;
+					grid[y][x + 1].color = color; // 保存颜色
+				  } else { // 垂直
+					grid[y][x].type = ElementTypes.SHELF_2x1;
+					grid[y][x].rotation = rotation;
+					grid[y][x].shelfGroupId = groupId;
+					grid[y][x].isShelfStart = true;
+					grid[y][x].color = color; // 保存颜色
+					
+					grid[y + 1][x].type = ElementTypes.SHELF_2x1;
+					grid[y + 1][x].rotation = rotation;
+					grid[y + 1][x].shelfGroupId = groupId;
+					grid[y + 1][x].isShelfStart = false;
+					grid[y + 1][x].color = color; // 保存颜色
+				  }
+			  
+			  }else if(cellPositions.length === 4 && nTemplateID === 9){
+				let y = 59 - cellPositions[2].x;
+			    let x = 59 - cellPositions[2].y;
+				
+				if(x + 1 < columns && y + 1 < rows 
+				  && isPositionAvailableNoAlert(x,y) && isPositionAvailableNoAlert(x + 1,y) 
+				  && isPositionAvailableNoAlert(x,y + 1) && isPositionAvailableNoAlert(x + 1,y + 1)){
+					
+					      // 生成货架组ID
+				  const groupId = `shelf-${Date.now()}-${x}-${y}`;
+				  
+				  // 放置货架
+				  for (let dy = 0; dy < 2; dy++) {
+					for (let dx = 0; dx < 2; dx++) {
+					  grid[y + dy][x + dx].type = ElementTypes.SHELF_2x2;
+					  grid[y + dy][x + dx].rotation = 0;
+					  grid[y + dy][x + dx].shelfGroupId = groupId;
+					  grid[y + dy][x + dx].isShelfStart = (dx === 0 && dy === 0);
+					}
+				  }
+					
+				}
+			  }
+			}
+			
+		});
+		
+		calculatePath();
+		//drawGrid();
+		
+	}
+	
+	/**
+	 * 渲染10个缓存卡槽
+	 */
+    async function renderCacheSlots() {
+	  const slotContainer = document.querySelector('.grid-cols-2');
+	  slotContainer.innerHTML = ''; // 清空现有卡槽
+	  modalSaveButton.textContent = '保存到存档'; // 默认按钮文字
+	  saveSlots = [];
+
+	  // 生成1-10号卡槽（循环中异步获取每个卡槽的缓存数据）
+	  for (let i = 0; i < 10; i++) {
+		const slot = document.createElement('div');
+		// 异步获取该卡槽的缓存数据（await 等待结果）
+		const cacheData = await getCacheDataSlot(i); // 调用改造后的异步方法
+
+		// 卡槽样式（未选中/选中状态，保持原逻辑）
+		slot.className = `border-2 rounded-lg p-4 cursor-pointer transition-all ${
+		  selectedSlot === i ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-blue-300'
+		}`;
+
+		// 卡槽内容（保留模板字符串，结构完全不变）
+		if (cacheData) {
+		  // 有缓存数据（原模板字符串直接复用）
+		  slot.innerHTML = `
+			<div class="flex justify-between items-center mb-4">
+			  <div class="flex items-center gap-1">
+				<i class="fa-solid fa-store text-blue-500 w-5 text-center"></i>
+				<span class="text-sm font-bold">${cacheData.name}</span>
+			  </div>
+			</div>
+			<div class="space-y-3 text-gray-700">
+			  <div class="flex items-center gap-3 p-2 bg-green-50 rounded-lg">
+				<i class="fa-solid fa-layer-group text-green-500 w-5 text-center"></i>
+				<span class="text-sm"><strong>货架数：</strong>${cacheData.shelfCount} 个</span>
+			  </div>
+			  <div class="flex items-center gap-3 p-2 bg-purple-50 rounded-lg">
+				<i class="fa-solid fa-border-all text-purple-500 w-5 text-center"></i>
+				<span class="text-sm"><strong>售货面数：</strong>${cacheData.salesSurfaceCount} 个</span>
+			  </div>
+			</div>
+		  `;
+
+		  // 选中时有缓存，按钮文字改为「覆盖到存档」
+		  if (selectedSlot === i) {
+			modalSaveButton.textContent = '覆盖到存档';
+		  }
+		} else {
+		  // 无缓存数据（模板字符串简化，保持原样式）
+		  slot.innerHTML = `
+			<div class="font-medium">存档 ${i + 1}</div>
+			<div class="text-sm text-gray-400 mt-2 text-center"><空></div>
+		  `;
+
+		  // 选中时无缓存，按钮文字改为「保存到存档」
+		  if (selectedSlot === i) {
+			modalSaveButton.textContent = '保存到存档';
+		  }
+		}
+
+		// 绑定选中事件（点击后重新渲染，保持原逻辑）
+		slot.addEventListener('click', () => {
+		  const prevSelectedSlot = saveSlots[selectedSlot];
+		  if (prevSelectedSlot) {
+			prevSelectedSlot.className = 'border-2 rounded-lg p-4 cursor-pointer transition-all border-gray-300 hover:border-blue-300';
+		  }
+		  slot.className = 'border-2 rounded-lg p-4 cursor-pointer transition-all border-blue-500 bg-blue-50';
+		  selectedSlot = i;
+		  modalSaveButton.textContent = cacheData ? '覆盖到存档' : '保存到存档';
+		  //renderCacheSlots(); // 异步方法直接调用，内部自动处理 await
+		});
+
+		slotContainer.appendChild(slot);
+		
+		saveSlots.push(slot);
+
+	  }
+	}
+	/*
+	function getCacheDataSlot(slotIndex){
+		const key = `${STORAGE_KEY_PREFIX}${slotIndex}`;
+		const data = localStorage.getItem(key);
+		return data ? JSON.parse(data) : null;
+	}*/
+	
+	async function getCacheDataSlot(slotIndex) {
+	  const key = `${STORAGE_KEY_PREFIX}${slotIndex}`;
+	  try {
+		// 异步读取（无需 JSON.parse，localforage 直接返回对象）
+		const data = await localforage.getItem(key);
+		// 有数据返回对象，无数据返回 null（和原逻辑一致）
+		return data || null;
+	  } catch (err) {
+		// 捕获读取失败（如数据库报错），返回 null 兼容原逻辑
+		console.error(`读取存档 ${slotIndex} 失败：`, err);
+		return null;
+	  }
+	}
+	
+	/**
+	 * 保存当前数据到选中卡槽
+	 */
+	function saveToSelectedSlot() {
+		if (selectedSlot === null) {
+			showAutoAlert('请先选择一个存档！','success');
+			return;
+		}
+		
+		// 保存到localStorage
+		const key = `${STORAGE_KEY_PREFIX}${selectedSlot}`;
+		
+		shopInfo = extractNumbers(STORAGE_KEY_PREFIX.slice(0, -1));
+		
+		//console.log('shopInfo:',shopInfo);
+		
+		currentStoreData = {
+			name: `${shopInfo[0]}店${shopInfo[1]}口`, 
+			shelfCount: totalShelf, 
+			salesSurfaceCount: totalSurface,
+			data: grid
+		}
+		//console.log('currentStoreData:',currentStoreData);
+		
+		
+		localforage.setItem(key, currentStoreData).then(() => {
+		  showAutoAlert(`已成功保存到存档${selectedSlot + 1}！`,'success');
+		  saveCacheData(STORAGE_KEY_PREFIX.slice(0, -1));
+		  closeSaveModal(); 
+		});
+		
+		/*
+		localStorage.setItem(key, JSON.stringify(currentStoreData));
+		
+		showAutoAlert(`已成功保存到存档${selectedSlot + 1}！`,'success');
+		saveCacheData(STORAGE_KEY_PREFIX.slice(0, -1));
+		closeSaveModal(); */
+	}
+	
+	/**
+	 * 从选中卡槽读取数据
+	 */
+	function loadFromSelectedSlot() {
+	  // 1. 先判断是否选中卡槽（保持原逻辑）
+	  if (selectedSlot === null) {
+		showAutoAlert('请选择一个存档！', 'success');
+		return;
+	  }
+
+	  // 2. 异步获取选中卡槽的缓存数据（用 .then() 处理结果）
+	  getCacheDataSlot(selectedSlot).then(cacheData => {
+		// 3. 判断是否有数据（保持原逻辑）
+		if (!cacheData) {
+		  showAutoAlert(`存档${selectedSlot + 1}无数据！`, 'error');
+		  return;
+		}
+
+		// 4. 读取数据并更新页面（保持原业务逻辑完全不变）
+		currentStoreData = cacheData.data; // 假设 cacheData 包含 data 字段（和原逻辑一致）
+		showAutoAlert('读取成功', 'success');
+
+		closeSaveModal(); // 读取后关闭弹窗（可选，保持原逻辑）
+
+		grid = currentStoreData;
+		shelfMap.clear();
+		// drawGrid(); // 绘制网格（保持原注释）
+		calculatePath(); // 计算路径（保持原逻辑）
+
+		canvas.scrollIntoView({ behavior: 'smooth' }); // 滚动到画布（保持原逻辑）
+	  }).catch(err => {
+		// 5. 新增：捕获读取异常（避免隐藏错误）
+		//console.error('读取存档失败：', err);
+		showAutoAlert('读取存档出错！', 'error');
+	  });
+	}
+	
+	
 	
 	// 导出JSON文件
     function exportJsonFile(data, fileName) {
@@ -1616,16 +2055,20 @@
 	function saveCacheData(cacheKey){
 	  //console.log('cacheKey: ', cacheKey);
 	  //console.log(JSON.stringify(grid));
-	  localStorage.setItem(cacheKey, JSON.stringify(grid));
-	  showAutoAlert('保存成功', 'success');
-	
+	  //localStorage.setItem(cacheKey, JSON.stringify(grid));
+	  //showAutoAlert('保存成功', 'success');
+	  localforage.setItem(cacheKey, grid).then(() => {
+		  console.log('存档保存成功:',cacheKey);
+		});
+			
 	}
 	
 	//删除对应缓存
+	/*
 	function clearCacheData(cacheKey){
 	  localStorage.removeItem(cacheKey);
 	  showAutoAlert('已删除', 'success');
-	}
+	}*/
 	
 	function changeCellSize(size){
 	  slider.value = size;
@@ -1671,14 +2114,15 @@
 		
 		document.getElementById('roomName').textContent = '超市 ' + koubeiInfo[0] + ' 店 ' + koubeiInfo[1] + ' 口';
 		let saveButton = document.getElementById('save-button');
-	    let clearButton = document.getElementById('clear-button');
+	    //let clearButton = document.getElementById('clear-button');
 	    let addButton = document.getElementById('add-button');
 		
 		let cacheKey = 'data_' + koubeiInfo[0] + '_' + koubeiInfo[1];
 		saveButton.dataset.template = cacheKey;
-	    clearButton.dataset.template = cacheKey;
+	    //clearButton.dataset.template = cacheKey;
 	    addButton.dataset.template = cacheKey;
 		exportButton.dataset.template = cacheKey;
+		STORAGE_KEY_PREFIX = cacheKey + '_';
 		
 		//获取模板数据2
 	    const subData = initialSubRoomData(roomData[koubeiInfo[0] - 1], koubeiInfo[1]);
@@ -1779,15 +2223,16 @@
 	  document.getElementById('roomName').textContent = '超市 ' + (Number(templateId) + 1) + ' 店 ' + koubei + ' 口';
 	  
 	  let saveButton = document.getElementById('save-button');
-	  let clearButton = document.getElementById('clear-button');
+	  //let clearButton = document.getElementById('clear-button');
 	  let addButton = document.getElementById('add-button');
 	  
 	  let cacheKey = 'data_' + (Number(templateId) + 1) + '_' + koubei;
 	  let cacheKey0 = 'data_' + (Number(templateId) + 1) + '_' + (koubei - 1);
 	  saveButton.dataset.template = cacheKey;
-	  clearButton.dataset.template = cacheKey;
+	  //clearButton.dataset.template = cacheKey;
 	  addButton.dataset.template = cacheKey;
 	  exportButton.dataset.template = cacheKey;
+	  STORAGE_KEY_PREFIX = cacheKey + '_';
 	  
       // 获取模板数据
       //const template = templates[templateId][koubei - 1];
@@ -1835,7 +2280,50 @@
       calculateScale();
 	  
 	  //读取网格缓存
-	  let cacheGridData = localStorage.getItem(cacheKey);
+	  let cachePreGridData = localStorage.getItem(cacheKey);
+	  localforage.getItem(cacheKey).then(cacheGridData => {
+		if(cacheGridData || cachePreGridData){
+		  grid = cacheGridData || JSON.parse(cachePreGridData);
+		  drawGrid();
+		  calculatePath();
+		  canvas.scrollIntoView({ behavior: 'smooth' });
+		  return;
+		}else{
+		  // 初始化网格数据
+		  initializeGrid();
+		  for(let i = 0; i < rows; i++){
+			for(let j = 0; j < columns; j++){
+			  const value = subData[i][j];
+			  const highNibble = (value >> 4) & 0x0F;
+			  const lowNibble = value & 0x0F;
+			  if(lowNibble == 1 || highNibble > koubei){
+				grid[i][j].type = ElementTypes.OBSTACLE;
+			  }else if(lowNibble == 2){
+				grid[i][j].type = ElementTypes.ENTRANCE;
+				entrance = { x: j, y: i };
+			  }else if(lowNibble == 3){
+				grid[i][j].type = ElementTypes.EXIT;
+				exit = { x: j, y: i };
+			  }
+			}
+		  }
+		  
+		  // 绘制网格
+		  drawGrid();
+		  
+		  // 如果已有入口和出口，计算路径
+		  if (entrance && exit) {
+			calculatePath();
+		  }
+		  
+		  // 滚动到Canvas区域
+		  canvas.scrollIntoView({ behavior: 'smooth' });
+		  
+		  
+		
+		}
+	  });
+	  /*
 	  if(cacheGridData){
 	    //entrance = { x: template.entrance.x, y: template.entrance.y };
 		//exit = { x: template.exit.x, y: template.exit.y };
@@ -1851,8 +2339,9 @@
 		
 		return;
 
-	  }
+	  }*/
       
+	  /*
       // 初始化网格数据
       initializeGrid();
 	  for(let i = 0; i < rows; i++){
@@ -1870,63 +2359,8 @@
 			exit = { x: j, y: i };
 		  }
 		}
-	  }
-      
+	  }*/
 	  /*
-      // 放置入口
-      if (template.entrance) {
-        grid[template.entrance.y][template.entrance.x].type = ElementTypes.ENTRANCE;
-        entrance = { x: template.entrance.x, y: template.entrance.y };
-      }
-      
-      // 放置出口
-      if (template.exit) {
-        grid[template.exit.y][template.exit.x].type = ElementTypes.EXIT;
-        exit = { x: template.exit.x, y: template.exit.y };
-      }
-      
-      // 放置障碍物
-      if (template.obstacles && template.obstacles.length > 0) {
-        template.obstacles.forEach(obstacle => {
-		  let x0 = Math.min(obstacle[0].x, obstacle[1].x);
-		  let x1 = Math.max(obstacle[0].x, obstacle[1].x);
-		  let y0 = Math.min(obstacle[0].y, obstacle[1].y);
-		  let y1 = Math.max(obstacle[0].y, obstacle[1].y);
-		  //console.log('坐标：',x0,',',y0,'|',x1,',',y1);
-		  for(let x = x0; x <= x1; x++){
-		    for(let y = y0; y <= y1; y++){
-			  if(isValidPosition(x, y)){
-			    //console.log(x,',',y);
-			    grid[y][x].type = ElementTypes.OBSTACLE;
-			  }
-			}
-		  }
-		  
-        });
-      }
-      
-      // 放置货架
-      if (template.shelves && template.shelves.length > 0) {
-        template.shelves.forEach(shelf => {
-          if (!isValidPosition(shelf.x, shelf.y)) {
-            return;
-          }
-          
-          switch (shelf.type) {
-            case 'shelf-1x1':
-              placeTemplateShelf1x1(shelf.x, shelf.y, shelf.color);
-              break;
-            case 'shelf-2x1':
-              placeTemplateShelf2x1(shelf.x, shelf.y, shelf.rotation || 0, shelf.color);
-              break;
-            case 'shelf-2x2':
-              placeTemplateShelf2x2(shelf.x, shelf.y);
-              break;
-          }
-        });
-      }*/
-	  
-	  /**/
 	  let cacheGridData0 = localStorage.getItem(cacheKey0);
 	  if(!cacheGridData && cacheGridData0){
 		
@@ -1954,7 +2388,7 @@
       }
       
       // 滚动到Canvas区域
-      canvas.scrollIntoView({ behavior: 'smooth' });
+      canvas.scrollIntoView({ behavior: 'smooth' });*/
     }
     
     // 检查位置是否有效
@@ -3400,6 +3834,29 @@
       
       return true;
     }
+	
+	// 检查位置是否可用于放置元素
+    function isPositionAvailableNoAlert(x, y) {
+      // 检查是否在边界内
+      if (x < 0 || x >= columns || y < 0 || y >= rows) {
+        return false;
+      }
+      
+      // 检查是否是入口或出口
+      if ((entrance && entrance.x === x && entrance.y === y) || 
+          (exit && exit.x === x && exit.y === y) ||
+		  (exit && (exit.x + 1) === x && exit.y === y)
+		  ) {
+        return false;
+      }
+      
+      // 检查是否已有元素
+      if (grid[y][x].type !== ElementTypes.EMPTY) {
+        return false;
+      }
+      
+      return true;
+    }
     
     // 选择工具
     function selectTool(tool) {
@@ -3764,8 +4221,8 @@
 		// 清空现有内容
 		tableBody.innerHTML = '';
 		// 计算总和
-		let totalShelf = 0;       // 货架数合计
-		let totalSurface = 0;     // 售货面数合计
+		totalShelf = 0;       // 货架数合计
+		totalSurface = 0;     // 售货面数合计
 		
 		// 循环生成数据行，并累加总和
 		shelfData.forEach(shelf => {
@@ -3837,4 +4294,3 @@
   </script>
 </body>
 </html>
-
