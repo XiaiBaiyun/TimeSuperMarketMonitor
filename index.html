@@ -1448,9 +1448,12 @@
 					grid[y + 1][x].color = color; // 保存颜色
 				  }
 			  
-			  }else if(cellPositions.length === 4 && nTemplateID === 9){
+			  }
+			}else if(cellPositions.length === 4 && nTemplateID === 9){
 				let y = 59 - cellPositions[2].x;
 			    let x = 59 - cellPositions[2].y;
+				
+				//console.log('2x2:(',x,',',y,')');
 				
 				if(x + 1 < columns && y + 1 < rows 
 				  && isPositionAvailableNoAlert(x,y) && isPositionAvailableNoAlert(x + 1,y) 
@@ -1471,7 +1474,6 @@
 					
 				}
 			  }
-			}
 			
 		});
 		
